@@ -1,0 +1,29 @@
+#pragma once
+
+#include <string>
+#include <windows.h>
+
+// 配置结构体
+struct Config {
+    std::string hotkey = "CTRL+ALT+C";
+    std::string hotkeyReverse = "CTRL+ALT+G";  // 新增：反向转换热键
+    std::string gviewPath = "";
+    std::string tempDir = "";
+    std::string logFile = "logs/xyz_monitor.log";
+    std::string gaussianClipboardPath = "";  // 新增：Gaussian clipboard文件路径
+    int waitSeconds = 5;
+    std::string logLevel = "INFO";
+    bool logToConsole = true;
+    bool logToFile = true;
+    // 新增内存配置项
+    int maxMemoryMB = 500;  // 默认500MB
+    size_t maxClipboardChars = 0;  // 自动计算，0表示使用内存计算
+};
+
+// 全局配置实例
+extern Config g_config;
+
+// 配置相关函数
+bool loadConfig(const std::string& configFile);
+bool reloadConfiguration();
+bool parseHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& vk);

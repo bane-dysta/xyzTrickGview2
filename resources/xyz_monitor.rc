@@ -1,0 +1,47 @@
+#include <windows.h>
+
+// Icon resource
+#define IDI_MAIN_ICON 101
+IDI_MAIN_ICON ICON "gview.ico"
+
+// Version information
+#define VER_FILEVERSION             1,0,0,0
+#define VER_FILEVERSION_STR         "1.0.0.0\0"
+#define VER_PRODUCTVERSION          1,0,0,0
+#define VER_PRODUCTVERSION_STR      "1.0.0.0\0"
+#define VER_COMPANYNAME_STR         "Bane Dysta\0"
+#define VER_FILEDESCRIPTION_STR     "XYZ Monitor - Clipboard to GView Bridge\0"
+#define VER_INTERNALNAME_STR        "xyz_monitor\0"
+#define VER_LEGALCOPYRIGHT_STR      "Author: Bane Dysta\0"
+#define VER_ORIGINALFILENAME_STR    "xyz_monitor.exe\0"
+#define VER_PRODUCTNAME_STR         "XYZ Monitor\0"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     VER_FILEVERSION
+PRODUCTVERSION  VER_PRODUCTVERSION
+FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
+FILEFLAGS       0x0L
+FILEOS          VOS__WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName",      VER_COMPANYNAME_STR
+            VALUE "FileDescription", VER_FILEDESCRIPTION_STR
+            VALUE "FileVersion",     VER_FILEVERSION_STR
+            VALUE "InternalName",    VER_INTERNALNAME_STR
+            VALUE "LegalCopyright",  VER_LEGALCOPYRIGHT_STR
+            VALUE "OriginalFilename", VER_ORIGINALFILENAME_STR
+            VALUE "ProductName",     VER_PRODUCTNAME_STR
+            VALUE "ProductVersion",  VER_PRODUCTVERSION_STR
+            VALUE "Comments",        "Feedback: https://github.com/bane-dysta/xyzTrickGview | http://bbs.keinsci.com/forum.php?mod=viewthread&tid=55596&fromuid=63020\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
