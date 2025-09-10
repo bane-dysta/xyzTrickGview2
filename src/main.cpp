@@ -189,7 +189,7 @@ void cleanupTrayIcon() {
 
 // 显示关于对话框
 void showAboutDialog(HWND hwnd) {
-    std::string message = "XYZ Monitor v1.1\n";
+    std::string message = "XYZ Monitor v2.0\n";
     message += "Author: Bane Dysta\n\n";
     message += "Bidirectional XYZ <-> GView converter.\n\n";
     message += "Current Settings:\n";
