@@ -131,6 +131,22 @@ bool reloadConfigurationWithHotkeys() {
     }
 }
 
+// 显示托盘通知
+void showTrayNotification(const std::string& title, const std::string& message, DWORD iconType = NIIF_INFO) {
+    if (g_nid.cbSize > 0) {
+        NOTIFYICONDATAA nid = g_nid;
+        nid.uFlags = NIF_INFO;
+        nid.dwInfoFlags = iconType;  // NIIF_INFO, NIIF_WARNING, NIIF_ERROR
+        nid.uTimeout = 3000;  // 显示3秒
+        
+        strncpy_s(nid.szInfoTitle, sizeof(nid.szInfoTitle), title.c_str(), _TRUNCATE);
+        strncpy_s(nid.szInfo, sizeof(nid.szInfo), message.c_str(), _TRUNCATE);
+        
+        Shell_NotifyIconA(NIM_MODIFY, &nid);
+        LOG_DEBUG("Tray notification sent: " + title);
+    }
+}
+
 // 创建托盘图标
 bool createTrayIcon(HWND hwnd) {
     ZeroMemory(&g_nid, sizeof(g_nid));
@@ -425,12 +441,14 @@ void processClipboardXYZToGView() {
 }
 
 // 处理GView clipboard到XYZ
+// 处理GView clipboard到XYZ
 void processGViewClipboardToXYZ() {
     LOG_INFO("Processing GView clipboard to XYZ...");
     
     try {
         if (g_config.gaussianClipboardPath.empty()) {
             LOG_ERROR("Gaussian clipboard path not configured!");
+            showTrayNotification("XYZ Monitor", "Error: Gaussian clipboard path not configured!", NIIF_ERROR);
             return;
         }
         
@@ -440,6 +458,7 @@ void processGViewClipboardToXYZ() {
         if (atoms.empty()) {
             LOG_ERROR("No atoms found in Gaussian clipboard file");
             LOG_INFO("Make sure you have copied a molecule in Gaussian and the path is correct.");
+            showTrayNotification("XYZ Monitor", "No atoms found. Copy a molecule in GaussianView first.", NIIF_WARNING);
             return;
         }
         
@@ -450,6 +469,7 @@ void processGViewClipboardToXYZ() {
         
         if (xyzString.empty()) {
             LOG_ERROR("Failed to create XYZ string");
+            showTrayNotification("XYZ Monitor", "Failed to create XYZ format", NIIF_ERROR);
             return;
         }
         
@@ -457,13 +477,20 @@ void processGViewClipboardToXYZ() {
         if (writeToClipboard(xyzString)) {
             LOG_INFO("SUCCESS: XYZ data written to clipboard!");
             LOG_DEBUG("XYZ content preview (first 200 chars): " + xyzString.substr(0, 200) + "...");
+            
+            // 显示成功通知
+            std::string notifMsg = "Converted " + std::to_string(atoms.size()) + " atoms to XYZ format";
+            showTrayNotification("GView to XYZ Success", notifMsg, NIIF_INFO);
         } else {
             LOG_ERROR("Failed to write to clipboard");
+            showTrayNotification("XYZ Monitor", "Failed to write to clipboard", NIIF_ERROR);
         }
     } catch (const std::exception& e) {
         LOG_ERROR("Exception in processGViewClipboardToXYZ: " + std::string(e.what()));
+        showTrayNotification("XYZ Monitor", "Error: " + std::string(e.what()), NIIF_ERROR);
     } catch (...) {
         LOG_ERROR("Unknown exception in processGViewClipboardToXYZ");
+        showTrayNotification("XYZ Monitor", "Unknown error occurred", NIIF_ERROR);
     }
 }
 
