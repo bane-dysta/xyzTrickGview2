@@ -5,7 +5,7 @@
 
 // 配置结构体
 struct Config {
-    std::string hotkey = "CTRL+ALT+C";
+    std::string hotkey = "CTRL+ALT+X";
     std::string hotkeyReverse = "CTRL+ALT+G";  // 新增：反向转换热键
     std::string gviewPath = "";
     std::string tempDir = "";

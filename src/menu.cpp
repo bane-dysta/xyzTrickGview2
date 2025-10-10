@@ -28,7 +28,12 @@ MenuWindow* g_menuWindow = nullptr;
 #define TAB_GENERAL 0
 #define TAB_ABOUT 1
 
-MenuWindow::MenuWindow(HWND parent) : m_hwnd(nullptr), m_hwndParent(parent), m_font(nullptr) {
+MenuWindow::MenuWindow(HWND parent) : m_hwnd(nullptr), m_hwndParent(parent), m_tabControl(nullptr),
+    m_hotkeyEdit(nullptr), m_hotkeyReverseEdit(nullptr), m_gviewPathEdit(nullptr), m_gaussianClipboardEdit(nullptr),
+    m_browseGViewButton(nullptr), m_browseGaussianButton(nullptr), m_hotkeyLabel(nullptr), m_hotkeyReverseLabel(nullptr),
+    m_gviewPathLabel(nullptr), m_gaussianClipboardLabel(nullptr), m_githubLink(nullptr), m_forumLink(nullptr),
+    m_titleLabel(nullptr), m_authorLabel(nullptr), m_descriptionLabel(nullptr), m_linksLabel(nullptr),
+    m_applyButton(nullptr), m_cancelButton(nullptr), m_okButton(nullptr), m_font(nullptr) {
     LoadCurrentConfig();
 }
 
