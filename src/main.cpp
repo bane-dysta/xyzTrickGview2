@@ -215,7 +215,7 @@ void showAboutDialog(HWND hwnd) {
     message += "Gaussian Clipboard: " + (g_config.gaussianClipboardPath.empty() ? "Not configured" : g_config.gaussianClipboardPath) + "\n";
     message += "Log Level: " + g_config.logLevel + "\n\n";
     message += "Feedback:\n";
-    message += "GitHub: https://github.com/bane-dysta/xyzTrickGview\n";
+    message += "GitHub: https://github.com/bane-dysta/xyzTrickGview2\n";
     message += "Forum: http://bbs.keinsci.com/forum.php?mod=viewthread&tid=55596&fromuid=63020\n\n";
     message += "Right-click tray icon for options.";
     
@@ -441,7 +441,6 @@ void processClipboardXYZToGView() {
 }
 
 // 处理GView clipboard到XYZ
-// 处理GView clipboard到XYZ
 void processGViewClipboardToXYZ() {
     LOG_INFO("Processing GView clipboard to XYZ...");
     
@@ -554,8 +553,142 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
     }
 }
 
-int main() {
+// 处理文件参数转换功能
+bool processFileConversion(const std::string& filepath) {
+    LOG_INFO("Processing file conversion: " + filepath);
+    
     try {
+        // 检查文件是否存在
+        if (!std::filesystem::exists(filepath)) {
+            LOG_ERROR("File does not exist: " + filepath);
+            showTrayNotification("XYZ Monitor", "文件不存在: " + filepath, NIIF_ERROR);
+            return false;
+        }
+        
+        // 检查文件扩展名
+        std::string ext = std::filesystem::path(filepath).extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        
+        if (ext != ".xyz" && ext != ".trj") {
+            LOG_ERROR("Unsupported file format: " + ext);
+            showTrayNotification("XYZ Monitor", "不支持的文件格式: " + ext, NIIF_ERROR);
+            return false;
+        }
+        
+        // 读取文件内容
+        std::ifstream file(filepath);
+        if (!file.is_open()) {
+            LOG_ERROR("Failed to open file: " + filepath);
+            showTrayNotification("XYZ Monitor", "无法打开文件: " + filepath, NIIF_ERROR);
+            return false;
+        }
+        
+        std::string content((std::istreambuf_iterator<char>(file)),
+                           std::istreambuf_iterator<char>());
+        file.close();
+        
+        if (content.empty()) {
+            LOG_ERROR("File is empty: " + filepath);
+            showTrayNotification("XYZ Monitor", "文件为空: " + filepath, NIIF_ERROR);
+            return false;
+        }
+        
+        // 检查内容长度
+        if (content.length() > g_config.maxClipboardChars) {
+            LOG_WARNING("File content is too large (" + std::to_string(content.length()) + 
+                       " characters). Limit is " + std::to_string(g_config.maxClipboardChars) + 
+                       " characters (" + std::to_string(g_config.maxMemoryMB) + "MB memory limit).");
+            showTrayNotification("XYZ Monitor", "文件内容过大，超出内存限制", NIIF_WARNING);
+            return false;
+        }
+        
+        // 验证XYZ格式
+        if (!isXYZFormat(content)) {
+            LOG_ERROR("Invalid XYZ format in file: " + filepath);
+            showTrayNotification("XYZ Monitor", "文件格式无效: " + filepath, NIIF_ERROR);
+            return false;
+        }
+        
+        double estimatedMemoryMB = (content.length() * 8.0) / (1024.0 * 1024.0);
+        LOG_INFO("Processing " + std::to_string(content.length()) + " characters from file (estimated " + 
+                std::to_string(static_cast<int>(estimatedMemoryMB)) + "MB memory usage)");
+        
+        // 解析XYZ数据
+        std::vector<Frame> frames = readMultiXYZ(content);
+        if (frames.empty()) {
+            LOG_ERROR("Failed to parse XYZ data from file: " + filepath);
+            showTrayNotification("XYZ Monitor", "解析XYZ数据失败: " + filepath, NIIF_ERROR);
+            return false;
+        }
+        
+        LOG_INFO("Found " + std::to_string(frames.size()) + " frame(s) with " + std::to_string(frames[0].atoms.size()) + " atoms.");
+        
+        // 转换为Gaussian log格式
+        std::string gaussianContent = convertToGaussianLog(frames);
+        if (gaussianContent.empty()) {
+            LOG_ERROR("Failed to convert file to Gaussian log format: " + filepath);
+            showTrayNotification("XYZ Monitor", "转换为Gaussian格式失败: " + filepath, NIIF_ERROR);
+            return false;
+        }
+        
+        // 创建临时文件
+        std::string tempFile = createTempFile(gaussianContent);
+        if (tempFile.empty()) {
+            LOG_ERROR("Failed to create temporary file for: " + filepath);
+            showTrayNotification("XYZ Monitor", "创建临时文件失败: " + filepath, NIIF_ERROR);
+            return false;
+        }
+        
+        // 使用GView打开
+        if (openWithGView(tempFile)) {
+            LOG_INFO("Successfully opened file with GView: " + filepath);
+            showTrayNotification("XYZ Monitor", "成功用GView打开文件: " + std::filesystem::path(filepath).filename().string(), NIIF_INFO);
+            return true;
+        } else {
+            LOG_ERROR("Failed to open file with GView: " + filepath);
+            showTrayNotification("XYZ Monitor", "无法用GView打开文件: " + filepath, NIIF_ERROR);
+            // 清理临时文件
+            if (!DeleteFileA(tempFile.c_str())) {
+                LOG_ERROR("Failed to cleanup temp file: " + tempFile);
+            }
+            return false;
+        }
+        
+    } catch (const std::exception& e) {
+        LOG_ERROR("Exception in processFileConversion: " + std::string(e.what()));
+        showTrayNotification("XYZ Monitor", "处理文件时出错: " + std::string(e.what()), NIIF_ERROR);
+        return false;
+    } catch (...) {
+        LOG_ERROR("Unknown exception in processFileConversion");
+        showTrayNotification("XYZ Monitor", "处理文件时发生未知错误", NIIF_ERROR);
+        return false;
+    }
+}
+
+int main(int argc, char* argv[]) {
+    try {
+        // 检查是否有文件参数
+        if (argc > 1) {
+            std::string filepath = argv[1];
+            LOG_INFO("File parameter received: " + filepath);
+            
+            // 加载配置
+            loadConfig("config.ini");
+            
+            LogLevel logLevel = stringToLogLevel(g_config.logLevel);
+            if (!g_logger.initialize(g_config.logFile, logLevel)) {
+                std::cerr << "Warning: Failed to initialize log file, logging to console only." << std::endl;
+            }
+            
+            g_logger.setLogToConsole(g_config.logToConsole);
+            g_logger.setLogToFile(g_config.logToFile);
+            
+            // 处理文件转换
+            bool success = processFileConversion(filepath);
+            return success ? 0 : 1;
+        }
+        
+        // 原有的主程序逻辑
         loadConfig("config.ini");
         
         LogLevel logLevel = stringToLogLevel(g_config.logLevel);
