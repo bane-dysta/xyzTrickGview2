@@ -28,3 +28,4 @@ bool loadConfig(const std::string& configFile);
 bool saveConfig(const std::string& configFile);
 bool reloadConfiguration();
 bool parseHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& vk);
+std::string getExecutableDirectory();

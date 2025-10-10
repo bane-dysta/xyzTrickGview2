@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 #include <algorithm>
+#include <filesystem>
 
 // 全局配置实例
 Config g_config;
@@ -15,12 +16,16 @@ bool loadConfig(const std::string& configFile) {
         // 创建默认配置文件
         std::ofstream outFile(configFile);
         if (outFile.is_open()) {
-            outFile << "hotkey=CTRL+ALT+C\n";
+            std::string exeDir = getExecutableDirectory();
+            std::string tempDirPath = exeDir.empty() ? "temp" : exeDir + "\\temp";
+            std::string logFilePath = exeDir.empty() ? "logs\\xyz_monitor.log" : exeDir + "\\logs\\xyz_monitor.log";
+            
+            outFile << "hotkey=CTRL+ALT+X\n";
             outFile << "hotkey_reverse=CTRL+ALT+G\n";
             outFile << "gview_path=gview.exe\n";
             outFile << "gaussian_clipboard_path=Clipboard.frg\n";
-            outFile << "temp_dir=temp\n";
-            outFile << "log_file=logs/xyz_monitor.log\n";
+            outFile << "temp_dir=" << tempDirPath << "\n";
+            outFile << "log_file=" << logFilePath << "\n";
             outFile << "log_level=INFO\n";
             outFile << "log_to_console=true\n";
             outFile << "log_to_file=true\n";
@@ -194,7 +199,9 @@ bool reloadConfiguration() {
         bool oldLogToConsole = g_config.logToConsole;
         bool oldLogToFile = g_config.logToFile;
         
-        if (!loadConfig("config.ini")) {
+        std::string exeDir = getExecutableDirectory();
+        std::string configPath = exeDir.empty() ? "config.ini" : exeDir + "/config.ini";
+        if (!loadConfig(configPath)) {
             LOG_WARNING("Failed to reload config file, using existing configuration");
             return false;
         }
@@ -221,5 +228,25 @@ bool reloadConfiguration() {
     } catch (const std::exception& e) {
         LOG_ERROR("Exception while reloading configuration: " + std::string(e.what()));
         return false;
+    }
+}
+
+// 获取可执行文件所在目录
+std::string getExecutableDirectory() {
+    try {
+        char buffer[MAX_PATH];
+        DWORD length = GetModuleFileNameA(NULL, buffer, MAX_PATH);
+        if (length == 0) {
+            LOG_ERROR("Failed to get executable path");
+            return "";
+        }
+        
+        std::filesystem::path exePath(buffer);
+        std::string exeDir = exePath.parent_path().string();
+        LOG_DEBUG("Executable directory: " + exeDir);
+        return exeDir;
+    } catch (const std::exception& e) {
+        LOG_ERROR("Exception getting executable directory: " + std::string(e.what()));
+        return "";
     }
 }

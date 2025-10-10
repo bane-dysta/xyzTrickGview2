@@ -260,7 +260,7 @@ void MenuWindow::CreateTabControl() {
 void MenuWindow::CreateGeneralTab() {
     // 热键设置
     m_hotkeyLabel = CreateWindowA("STATIC", "Primary Hotkey (XYZ->GView):", WS_CHILD | WS_VISIBLE,
-                  30, 50, 200, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
+                  30, 50, 250, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
     if (m_font) SendMessage(m_hotkeyLabel, WM_SETFONT, (WPARAM)m_font, TRUE);
     
     m_hotkeyEdit = CreateWindowA("EDIT", m_hotkey.c_str(),
@@ -270,7 +270,7 @@ void MenuWindow::CreateGeneralTab() {
     if (m_font) SendMessage(m_hotkeyEdit, WM_SETFONT, (WPARAM)m_font, TRUE);
     
     m_hotkeyReverseLabel = CreateWindowA("STATIC", "Reverse Hotkey (GView->XYZ):", WS_CHILD | WS_VISIBLE,
-                  30, 110, 200, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
+                  30, 110, 250, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
     if (m_font) SendMessage(m_hotkeyReverseLabel, WM_SETFONT, (WPARAM)m_font, TRUE);
     
     m_hotkeyReverseEdit = CreateWindowA("EDIT", m_hotkeyReverse.c_str(),

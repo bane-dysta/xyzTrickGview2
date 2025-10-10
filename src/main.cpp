@@ -664,7 +664,9 @@ int main(int argc, char* argv[]) {
             LOG_INFO("File parameter received: " + filepath);
             
             // 加载配置
-            loadConfig("config.ini");
+            std::string exeDir = getExecutableDirectory();
+            std::string configPath = exeDir.empty() ? "config.ini" : exeDir + "/config.ini";
+            loadConfig(configPath);
             
             LogLevel logLevel = stringToLogLevel(g_config.logLevel);
             if (!g_logger.initialize(g_config.logFile, logLevel)) {
@@ -680,7 +682,9 @@ int main(int argc, char* argv[]) {
         }
         
         // 原有的主程序逻辑
-        loadConfig("config.ini");
+        std::string exeDir = getExecutableDirectory();
+        std::string configPath = exeDir.empty() ? "config.ini" : exeDir + "/config.ini";
+        loadConfig(configPath);
         
         LogLevel logLevel = stringToLogLevel(g_config.logLevel);
         if (!g_logger.initialize(g_config.logFile, logLevel)) {
