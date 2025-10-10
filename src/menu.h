@@ -1,0 +1,104 @@
+#pragma once
+
+#include <windows.h>
+#include <commctrl.h>
+#include <string>
+
+// 菜单窗口类
+class MenuWindow {
+private:
+    HWND m_hwnd;
+    HWND m_hwndParent;
+    HWND m_tabControl;
+    
+    // General tab controls
+    HWND m_hotkeyEdit;
+    HWND m_hotkeyReverseEdit;
+    HWND m_gviewPathEdit;
+    HWND m_gaussianClipboardEdit;
+    HWND m_browseGViewButton;
+    HWND m_browseGaussianButton;
+    
+    // General tab labels
+    HWND m_hotkeyLabel;
+    HWND m_hotkeyReverseLabel;
+    HWND m_gviewPathLabel;
+    HWND m_gaussianClipboardLabel;
+    
+    // About tab controls
+    HWND m_githubLink;
+    HWND m_forumLink;
+    
+    // About tab labels
+    HWND m_titleLabel;
+    HWND m_authorLabel;
+    HWND m_descriptionLabel;
+    HWND m_linksLabel;
+    
+    // Common controls
+    HWND m_applyButton;
+    HWND m_cancelButton;
+    HWND m_okButton;
+    
+    // Font
+    HFONT m_font;
+    
+    // 当前配置的副本
+    std::string m_hotkey;
+    std::string m_hotkeyReverse;
+    std::string m_gviewPath;
+    std::string m_gaussianClipboardPath;
+    std::string m_logLevel;
+    
+    // 窗口过程
+    static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+    LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+    
+    // 消息处理函数
+    void OnCreate();
+    void OnDestroy();
+    void OnCommand(WPARAM wParam, LPARAM lParam);
+    void OnNotify(WPARAM wParam, LPARAM lParam);
+    void OnPaint();
+    
+    // 控件创建函数
+    void CreateTabControl();
+    void CreateGeneralTab();
+    void CreateAboutTab();
+    
+    // 工具函数
+    void UpdateControls();
+    void LoadCurrentConfig();
+    bool ValidateInputs();
+    void ApplySettings();
+    
+    // 对话框处理
+    void OnBrowseGViewPath();
+    void OnBrowseGaussianClipboard();
+    void OnOpenLink(const std::string& url);
+    
+public:
+    MenuWindow(HWND parent);
+    ~MenuWindow();
+    
+    // 显示菜单窗口
+    bool Show();
+    
+    // 获取窗口句柄
+    HWND GetHandle() const { return m_hwnd; }
+    
+    // 获取选项卡控件句柄
+    HWND GetTabControl() const { return m_tabControl; }
+    
+    // 显示指定选项卡
+    void ShowTab(int tabIndex);
+};
+
+// 全局菜单窗口实例
+extern MenuWindow* g_menuWindow;
+
+// 菜单相关函数
+bool CreateMenuWindow(HWND parent);
+void DestroyMenuWindow();
+bool IsMenuWindowVisible();
+void ShowMenuWindow();

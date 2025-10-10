@@ -9,7 +9,7 @@ RC = x86_64-w64-mingw32-windres
 TARGET = xyz_monitor.exe
 
 # Source files (now in src directory)
-SOURCES = src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp
+SOURCES = src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp src/menu.cpp
 
 # Object files (put in build directory)
 OBJECTS = $(SOURCES:src/%.cpp=build/%.o)
@@ -24,7 +24,7 @@ INCLUDES = -Isrc
 # Compiler flags for MinGW/GCC
 CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -static-libgcc -static-libstdc++ $(INCLUDES)
 LDFLAGS = -static -mwindows
-LIBS = -luser32 -lkernel32 -lshell32 -lgdi32
+LIBS = -luser32 -lkernel32 -lshell32 -lgdi32 -lcomctl32
 
 # Debug flags
 DEBUG_CXXFLAGS = -std=c++17 -Wall -Wextra -g -DDEBUG $(INCLUDES)
@@ -105,21 +105,22 @@ rebuild: clean all
 # Check for required files
 check:
 	@echo "Checking required files..."
-	@for file in src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp; do \
+	@for file in src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp src/menu.cpp; do \
 		if [ -f "$$file" ]; then echo "✓ $$file found"; else echo "✗ $$file missing!"; fi; \
 	done
-	@for file in src/core.h src/logger.h src/config.h src/converter.h; do \
+	@for file in src/core.h src/logger.h src/config.h src/converter.h src/menu.h; do \
 		if [ -f "$$file" ]; then echo "✓ $$file found"; else echo "✗ $$file missing!"; fi; \
 	done
 	@if [ -f "$(RESOURCE_RC)" ]; then echo "✓ $(RESOURCE_RC) found"; else echo "⚠ $(RESOURCE_RC) missing - use 'make no-res'"; fi
 	@if [ -f "resources/gview.ico" ]; then echo "✓ gview.ico found"; else echo "⚠ gview.ico missing - using default icon"; fi
 
 # Dependencies
-build/main.o: src/main.cpp src/core.h src/logger.h src/config.h src/converter.h
+build/main.o: src/main.cpp src/core.h src/logger.h src/config.h src/converter.h src/menu.h
 build/core.o: src/core.cpp src/core.h
 build/logger.o: src/logger.cpp src/logger.h  
 build/config.o: src/config.cpp src/config.h src/logger.h src/core.h
 build/converter.o: src/converter.cpp src/converter.h src/logger.h src/core.h
+build/menu.o: src/menu.cpp src/menu.h src/config.h src/logger.h
 
 # Mark targets that don't create files
 .PHONY: all no-res debug clean install setup config rebuild check help

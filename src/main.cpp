@@ -12,6 +12,8 @@
 #include "logger.h"
 #include "config.h"
 #include "converter.h"
+#include "menu.h"
+#include "version.h"
 
 // 解决Windows ERROR宏冲突
 #ifdef ERROR
@@ -180,7 +182,7 @@ bool createTrayIcon(HWND hwnd) {
 void showTrayMenu(HWND hwnd, POINT pt) {
     HMENU hMenu = CreatePopupMenu();
     if (hMenu) {
-        AppendMenuA(hMenu, MF_STRING, ID_TRAY_ABOUT, "XYZ Monitor v1.1 - by Bane Dysta");
+        AppendMenuA(hMenu, MF_STRING, ID_TRAY_ABOUT, (APP_NAME " v" VERSION_STRING " - by " APP_AUTHOR));
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
         AppendMenuA(hMenu, MF_STRING, ID_TRAY_RELOAD, "Reload Configuration");
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
@@ -203,24 +205,6 @@ void cleanupTrayIcon() {
     }
 }
 
-// 显示关于对话框
-void showAboutDialog(HWND hwnd) {
-    std::string message = "XYZ Monitor v2.0\n";
-    message += "Author: Bane Dysta\n\n";
-    message += "Bidirectional XYZ <-> GView converter.\n\n";
-    message += "Current Settings:\n";
-    message += "XYZ->GView: " + g_config.hotkey + "\n";
-    message += "GView->XYZ: " + g_config.hotkeyReverse + "\n";
-    message += "GView Path: " + (g_config.gviewPath.empty() ? "Not configured" : g_config.gviewPath) + "\n";
-    message += "Gaussian Clipboard: " + (g_config.gaussianClipboardPath.empty() ? "Not configured" : g_config.gaussianClipboardPath) + "\n";
-    message += "Log Level: " + g_config.logLevel + "\n\n";
-    message += "Feedback:\n";
-    message += "GitHub: https://github.com/bane-dysta/xyzTrickGview2\n";
-    message += "Forum: http://bbs.keinsci.com/forum.php?mod=viewthread&tid=55596&fromuid=63020\n\n";
-    message += "Right-click tray icon for options.";
-    
-    MessageBoxA(hwnd, message.c_str(), "About XYZ Monitor", MB_OK | MB_ICONINFORMATION);
-}
 
 // 读取剪贴板内容
 std::string getClipboardText() {
@@ -508,7 +492,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             case WM_TRAYICON:
                 switch (lParam) {
                     case WM_LBUTTONDBLCLK:
-                        showAboutDialog(hwnd);
+                        ShowMenuWindow();
                         break;
                         
                     case WM_RBUTTONUP:
@@ -522,7 +506,13 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
             case WM_COMMAND:
                 switch (LOWORD(wParam)) {
                     case ID_TRAY_ABOUT:
-                        showAboutDialog(hwnd);
+                        // 打开设置对话框并切换到About选项卡
+                        ShowMenuWindow();
+                        if (g_menuWindow) {
+                            // 切换到About选项卡（索引为1）
+                            TabCtrl_SetCurSel(g_menuWindow->GetTabControl(), 1);
+                            g_menuWindow->ShowTab(1);
+                        }
                         break;
                         
                     case ID_TRAY_RELOAD:
@@ -542,6 +532,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                 
             case WM_DESTROY:
                 cleanupTrayIcon();
+                DestroyMenuWindow();
                 PostQuitMessage(0);
                 return 0;
         }
@@ -699,7 +690,7 @@ int main(int argc, char* argv[]) {
         g_logger.setLogToConsole(g_config.logToConsole);
         g_logger.setLogToFile(g_config.logToFile);
         
-        LOG_INFO("XYZ Monitor v1.1 starting...");
+        LOG_INFO("XYZ Monitor starting...");
         
         LOG_INFO("Configuration:");
         LOG_INFO("  XYZ->GView Hotkey: " + g_config.hotkey);
@@ -763,6 +754,7 @@ int main(int argc, char* argv[]) {
         UnregisterHotKey(g_hwnd, HOTKEY_XYZ_TO_GVIEW);
         UnregisterHotKey(g_hwnd, HOTKEY_GVIEW_TO_XYZ);
         cleanupTrayIcon();
+        DestroyMenuWindow();
         DestroyWindow(g_hwnd);
         
         LOG_INFO("XYZ Monitor stopped.");

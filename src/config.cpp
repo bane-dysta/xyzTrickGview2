@@ -91,6 +91,39 @@ bool loadConfig(const std::string& configFile) {
     return true;
 }
 
+// 保存配置文件
+bool saveConfig(const std::string& configFile) {
+    try {
+        std::ofstream file(configFile);
+        if (!file.is_open()) {
+            LOG_ERROR("Failed to open config file for writing: " + configFile);
+            return false;
+        }
+        
+        file << "hotkey=" << g_config.hotkey << "\n";
+        file << "hotkey_reverse=" << g_config.hotkeyReverse << "\n";
+        file << "gview_path=" << g_config.gviewPath << "\n";
+        file << "gaussian_clipboard_path=" << g_config.gaussianClipboardPath << "\n";
+        file << "temp_dir=" << g_config.tempDir << "\n";
+        file << "log_file=" << g_config.logFile << "\n";
+        file << "log_level=" << g_config.logLevel << "\n";
+        file << "log_to_console=" << (g_config.logToConsole ? "true" : "false") << "\n";
+        file << "log_to_file=" << (g_config.logToFile ? "true" : "false") << "\n";
+        file << "wait_seconds=" << g_config.waitSeconds << "\n";
+        file << "# Memory limit in MB for processing (default: 500MB)\n";
+        file << "max_memory_mb=" << g_config.maxMemoryMB << "\n";
+        file << "# Optional: set explicit character limit (0 = auto calculate from memory)\n";
+        file << "max_clipboard_chars=" << g_config.maxClipboardChars << "\n";
+        
+        file.close();
+        LOG_INFO("Configuration saved to: " + configFile);
+        return true;
+    } catch (const std::exception& e) {
+        LOG_ERROR("Exception saving config: " + std::string(e.what()));
+        return false;
+    }
+}
+
 // 解析热键字符串
 bool parseHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& vk) {
     modifiers = 0;
