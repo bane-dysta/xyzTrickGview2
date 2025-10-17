@@ -23,16 +23,25 @@ MenuWindow* g_menuWindow = nullptr;
 #define ID_OK_BUTTON 1011
 #define ID_BROWSE_GVIEW 1012
 #define ID_BROWSE_GAUSSIAN 1013
+#define ID_ELEMENT_COLUMN_EDIT 1014
+#define ID_X_COLUMN_EDIT 1015
+#define ID_Y_COLUMN_EDIT 1016
+#define ID_Z_COLUMN_EDIT 1017
+#define ID_CHG_FORMAT_CHECKBOX 1018
 
 // 选项卡索引
 #define TAB_GENERAL 0
-#define TAB_ABOUT 1
+#define TAB_CONTROL 1
+#define TAB_ABOUT 2
 
 MenuWindow::MenuWindow(HWND parent) : m_hwnd(nullptr), m_hwndParent(parent), m_tabControl(nullptr),
     m_hotkeyEdit(nullptr), m_hotkeyReverseEdit(nullptr), m_gviewPathEdit(nullptr), m_gaussianClipboardEdit(nullptr),
     m_browseGViewButton(nullptr), m_browseGaussianButton(nullptr), m_hotkeyLabel(nullptr), m_hotkeyReverseLabel(nullptr),
     m_gviewPathLabel(nullptr), m_gaussianClipboardLabel(nullptr), m_githubLink(nullptr), m_forumLink(nullptr),
     m_titleLabel(nullptr), m_authorLabel(nullptr), m_descriptionLabel(nullptr), m_linksLabel(nullptr),
+    m_elementColumnEdit(nullptr), m_xColumnEdit(nullptr), m_yColumnEdit(nullptr), m_zColumnEdit(nullptr),
+    m_chgFormatCheckbox(nullptr),
+    m_controlDescLabel(nullptr), m_elementColumnLabel(nullptr), m_xyzColumnsLabel(nullptr),
     m_applyButton(nullptr), m_cancelButton(nullptr), m_okButton(nullptr), m_font(nullptr) {
     LoadCurrentConfig();
 }
@@ -52,6 +61,11 @@ void MenuWindow::LoadCurrentConfig() {
     m_gviewPath = g_config.gviewPath;
     m_gaussianClipboardPath = g_config.gaussianClipboardPath;
     m_logLevel = g_config.logLevel;
+    m_elementColumn = g_config.elementColumn;
+    m_xColumn = g_config.xColumn;
+    m_yColumn = g_config.yColumn;
+    m_zColumn = g_config.zColumn;
+    m_tryParseChgFormat = g_config.tryParseChgFormat;
 }
 
 bool MenuWindow::Show() {
@@ -170,6 +184,7 @@ void MenuWindow::OnCreate() {
     
     CreateTabControl();
     CreateGeneralTab();
+    CreateControlTab();
     CreateAboutTab();
     
     // 默认显示第一个选项卡
@@ -257,6 +272,9 @@ void MenuWindow::CreateTabControl() {
         tci.pszText = const_cast<char*>("General");
         TabCtrl_InsertItem(m_tabControl, TAB_GENERAL, &tci);
         
+        tci.pszText = const_cast<char*>("Control");
+        TabCtrl_InsertItem(m_tabControl, TAB_CONTROL, &tci);
+        
         tci.pszText = const_cast<char*>("About");
         TabCtrl_InsertItem(m_tabControl, TAB_ABOUT, &tci);
     }
@@ -317,6 +335,64 @@ void MenuWindow::CreateGeneralTab() {
     if (m_font) SendMessage(m_browseGaussianButton, WM_SETFONT, (WPARAM)m_font, TRUE);
 }
 
+void MenuWindow::CreateControlTab() {
+    // 说明文字
+    m_controlDescLabel = CreateWindowA("STATIC", 
+                  "Column Definitions for XYZ Converter (1-based indexing):",
+                  WS_CHILD | WS_VISIBLE | SS_LEFT,
+                  30, 50, 400, 40, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_controlDescLabel, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // Element列设置
+    m_elementColumnLabel = CreateWindowA("STATIC", "Element Column:", WS_CHILD | WS_VISIBLE,
+                  30, 80, 150, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_elementColumnLabel, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    m_elementColumnEdit = CreateWindowA("EDIT", std::to_string(m_elementColumn).c_str(),
+                                        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_NUMBER,
+                                        160, 80, 80, 25, m_hwnd, (HMENU)ID_ELEMENT_COLUMN_EDIT,
+                                        GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_elementColumnEdit, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // XYZ列设置
+    m_xyzColumnsLabel = CreateWindowA("STATIC", "XYZ Columns:", WS_CHILD | WS_VISIBLE,
+                  30, 110, 150, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_xyzColumnsLabel, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // X列
+    
+    m_xColumnEdit = CreateWindowA("EDIT", std::to_string(m_xColumn).c_str(),
+                                  WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_NUMBER,
+                                  160, 110, 50, 25, m_hwnd, (HMENU)ID_X_COLUMN_EDIT,
+                                  GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_xColumnEdit, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // Y列
+    
+    m_yColumnEdit = CreateWindowA("EDIT", std::to_string(m_yColumn).c_str(),
+                                  WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_NUMBER,
+                                  220, 110, 50, 25, m_hwnd, (HMENU)ID_Y_COLUMN_EDIT,
+                                  GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_yColumnEdit, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // Z列
+    
+    m_zColumnEdit = CreateWindowA("EDIT", std::to_string(m_zColumn).c_str(),
+                                  WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_NUMBER,
+                                  280, 110, 50, 25, m_hwnd, (HMENU)ID_Z_COLUMN_EDIT,
+                                  GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_zColumnEdit, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // CHG格式支持复选框
+    m_chgFormatCheckbox = CreateWindowA("BUTTON", "Try Parse CHG Format (Element X Y Z Charge)",
+                                        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                                        30, 150, 380, 25, m_hwnd, (HMENU)ID_CHG_FORMAT_CHECKBOX,
+                                        GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_chgFormatCheckbox, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // 设置复选框状态
+    SendMessage(m_chgFormatCheckbox, BM_SETCHECK, m_tryParseChgFormat ? BST_CHECKED : BST_UNCHECKED, 0);
+}
 
 void MenuWindow::CreateAboutTab() {
     // 程序信息
@@ -377,6 +453,17 @@ void MenuWindow::ShowTab(int tabIndex) {
             ShowWindow(m_browseGaussianButton, SW_SHOW);
             break;
             
+        case TAB_CONTROL:
+            ShowWindow(m_controlDescLabel, SW_SHOW);
+            ShowWindow(m_elementColumnLabel, SW_SHOW);
+            ShowWindow(m_elementColumnEdit, SW_SHOW);
+            ShowWindow(m_xyzColumnsLabel, SW_SHOW);
+            ShowWindow(m_xColumnEdit, SW_SHOW);
+            ShowWindow(m_yColumnEdit, SW_SHOW);
+            ShowWindow(m_zColumnEdit, SW_SHOW);
+            ShowWindow(m_chgFormatCheckbox, SW_SHOW);
+            break;
+            
         case TAB_ABOUT:
             ShowWindow(m_titleLabel, SW_SHOW);
             ShowWindow(m_authorLabel, SW_SHOW);
@@ -418,6 +505,21 @@ void MenuWindow::UpdateControls() {
     }
     if (m_gaussianClipboardEdit) {
         SetWindowTextA(m_gaussianClipboardEdit, m_gaussianClipboardPath.c_str());
+    }
+    if (m_elementColumnEdit) {
+        SetWindowTextA(m_elementColumnEdit, std::to_string(m_elementColumn).c_str());
+    }
+    if (m_xColumnEdit) {
+        SetWindowTextA(m_xColumnEdit, std::to_string(m_xColumn).c_str());
+    }
+    if (m_yColumnEdit) {
+        SetWindowTextA(m_yColumnEdit, std::to_string(m_yColumn).c_str());
+    }
+    if (m_zColumnEdit) {
+        SetWindowTextA(m_zColumnEdit, std::to_string(m_zColumn).c_str());
+    }
+    if (m_chgFormatCheckbox) {
+        SendMessage(m_chgFormatCheckbox, BM_SETCHECK, m_tryParseChgFormat ? BST_CHECKED : BST_UNCHECKED, 0);
     }
 }
 
@@ -462,6 +564,35 @@ bool MenuWindow::ValidateInputs() {
         }
     }
     
+    // 验证列定义
+    GetWindowTextA(m_elementColumnEdit, buffer, sizeof(buffer));
+    int elementColumn = std::atoi(buffer);
+    if (elementColumn < 1) {
+        MessageBoxA(m_hwnd, "Element column must be >= 1!", "Validation Error", MB_OK | MB_ICONERROR);
+        return false;
+    }
+    
+    GetWindowTextA(m_xColumnEdit, buffer, sizeof(buffer));
+    int xColumn = std::atoi(buffer);
+    if (xColumn < 1) {
+        MessageBoxA(m_hwnd, "X column must be >= 1!", "Validation Error", MB_OK | MB_ICONERROR);
+        return false;
+    }
+    
+    GetWindowTextA(m_yColumnEdit, buffer, sizeof(buffer));
+    int yColumn = std::atoi(buffer);
+    if (yColumn < 1) {
+        MessageBoxA(m_hwnd, "Y column must be >= 1!", "Validation Error", MB_OK | MB_ICONERROR);
+        return false;
+    }
+    
+    GetWindowTextA(m_zColumnEdit, buffer, sizeof(buffer));
+    int zColumn = std::atoi(buffer);
+    if (zColumn < 1) {
+        MessageBoxA(m_hwnd, "Z column must be >= 1!", "Validation Error", MB_OK | MB_ICONERROR);
+        return false;
+    }
+    
     return true;
 }
 
@@ -481,11 +612,31 @@ void MenuWindow::ApplySettings() {
     GetWindowTextA(m_gaussianClipboardEdit, buffer, sizeof(buffer));
     m_gaussianClipboardPath = buffer;
     
+    GetWindowTextA(m_elementColumnEdit, buffer, sizeof(buffer));
+    m_elementColumn = std::atoi(buffer);
+    
+    GetWindowTextA(m_xColumnEdit, buffer, sizeof(buffer));
+    m_xColumn = std::atoi(buffer);
+    
+    GetWindowTextA(m_yColumnEdit, buffer, sizeof(buffer));
+    m_yColumn = std::atoi(buffer);
+    
+    GetWindowTextA(m_zColumnEdit, buffer, sizeof(buffer));
+    m_zColumn = std::atoi(buffer);
+    
+    // 获取复选框状态
+    m_tryParseChgFormat = (SendMessage(m_chgFormatCheckbox, BM_GETCHECK, 0, 0) == BST_CHECKED);
+    
     // 更新全局配置
     g_config.hotkey = m_hotkey;
     g_config.hotkeyReverse = m_hotkeyReverse;
     g_config.gviewPath = m_gviewPath;
     g_config.gaussianClipboardPath = m_gaussianClipboardPath;
+    g_config.elementColumn = m_elementColumn;
+    g_config.xColumn = m_xColumn;
+    g_config.yColumn = m_yColumn;
+    g_config.zColumn = m_zColumn;
+    g_config.tryParseChgFormat = m_tryParseChgFormat;
     
     // 保存配置到文件
     if (saveConfig("config.ini")) {

@@ -2,3 +2,6 @@ build/*
 *.ini
 *.exe
 logs/*
+*.gjf
+*.xyz
+temp/

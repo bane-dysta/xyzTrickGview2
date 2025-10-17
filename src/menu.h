@@ -35,6 +35,18 @@ private:
     HWND m_descriptionLabel;
     HWND m_linksLabel;
     
+    // Control tab controls
+    HWND m_elementColumnEdit;
+    HWND m_xColumnEdit;
+    HWND m_yColumnEdit;
+    HWND m_zColumnEdit;
+    HWND m_chgFormatCheckbox;
+    
+    // Control tab labels
+    HWND m_controlDescLabel;
+    HWND m_elementColumnLabel;
+    HWND m_xyzColumnsLabel;
+    
     // Common controls
     HWND m_applyButton;
     HWND m_cancelButton;
@@ -49,6 +61,11 @@ private:
     std::string m_gviewPath;
     std::string m_gaussianClipboardPath;
     std::string m_logLevel;
+    int m_elementColumn;
+    int m_xColumn;
+    int m_yColumn;
+    int m_zColumn;
+    bool m_tryParseChgFormat;
     
     // 窗口过程
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -64,6 +81,7 @@ private:
     // 控件创建函数
     void CreateTabControl();
     void CreateGeneralTab();
+    void CreateControlTab();
     void CreateAboutTab();
     
     // 工具函数

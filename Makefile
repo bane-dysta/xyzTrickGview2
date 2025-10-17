@@ -76,7 +76,7 @@ clean:
 # Create config file template
 config:
 	@echo "Creating config.ini template..."
-	@echo "hotkey=CTRL+ALT+C" > config.ini
+	@echo "hotkey=CTRL+ALT+X" > config.ini
 	@echo "hotkey_reverse=CTRL+ALT+G" >> config.ini
 	@echo "gview_path=gview.exe" >> config.ini
 	@echo "gaussian_clipboard_path=Clipboard.frg" >> config.ini

@@ -34,6 +34,9 @@ bool loadConfig(const std::string& configFile) {
             outFile << "max_memory_mb=500\n";
             outFile << "# Optional: set explicit character limit (0 = auto calculate from memory)\n";
             outFile << "max_clipboard_chars=0\n";
+            outFile << "# XYZ Converter Column Definitions (1-based indexing)\n";
+            outFile << "element_column=1\n";
+            outFile << "xyz_columns=2,3,4\n";
             outFile.close();
             std::cout << "Created default config file: " << configFile << std::endl;
         } else {
@@ -81,6 +84,17 @@ bool loadConfig(const std::string& configFile) {
                 } else if (key == "max_clipboard_chars") {
                     size_t charLimit = std::stoull(value);
                     g_config.maxClipboardChars = charLimit;
+                } else if (key == "element_column") {
+                    g_config.elementColumn = std::stoi(value);
+                } else if (key == "xyz_columns") {
+                    std::vector<std::string> parts = split(value, ',');
+                    if (parts.size() == 3) {
+                        g_config.xColumn = std::stoi(trim(parts[0]));
+                        g_config.yColumn = std::stoi(trim(parts[1]));
+                        g_config.zColumn = std::stoi(trim(parts[2]));
+                    }
+                } else if (key == "try_parse_chg_format") {
+                    g_config.tryParseChgFormat = (value == "true" || value == "1");
                 }
             } catch (const std::exception& e) {
                 LOG_ERROR("Error parsing config value for key '" + key + "': " + std::string(e.what()));
@@ -119,6 +133,11 @@ bool saveConfig(const std::string& configFile) {
         file << "max_memory_mb=" << g_config.maxMemoryMB << "\n";
         file << "# Optional: set explicit character limit (0 = auto calculate from memory)\n";
         file << "max_clipboard_chars=" << g_config.maxClipboardChars << "\n";
+        file << "# XYZ Converter Column Definitions (1-based indexing)\n";
+        file << "element_column=" << g_config.elementColumn << "\n";
+        file << "xyz_columns=" << g_config.xColumn << "," << g_config.yColumn << "," << g_config.zColumn << "\n";
+        file << "# CHG Format Support (format: Element X Y Z Charge)\n";
+        file << "try_parse_chg_format=" << (g_config.tryParseChgFormat ? "true" : "false") << "\n";
         
         file.close();
         LOG_INFO("Configuration saved to: " + configFile);

@@ -8,6 +8,7 @@
 struct Atom {
     std::string symbol;
     double x, y, z;
+    double charge = 0.0;  // 电荷（从CHG格式读取，用于Mulliken电荷）
 };
 
 // 优化信息结构体

@@ -7,7 +7,7 @@
 #define VERSION_BUILD 0
 
 // 版本字符串
-#define VERSION_STRING "2.0.1"
+#define VERSION_STRING "2.0.2"
 
 // 程序信息
 #define APP_NAME "XYZ Monitor"

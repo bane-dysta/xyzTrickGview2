@@ -379,16 +379,29 @@ void processClipboardXYZToGView() {
             return;
         }
         
-        if (!isXYZFormat(content)) {
-            LOG_INFO("Invalid XYZ format in clipboard.");
+        // 尝试解析格式
+        std::vector<Frame> frames;
+        bool isChg = false;
+        
+        // 如果启用了CHG格式支持，优先尝试CHG格式
+        if (g_config.tryParseChgFormat && isChgFormat(content)) {
+            LOG_INFO("Detected CHG format in clipboard.");
+            isChg = true;
+            Frame frame = readChgFrame(content);
+            if (!frame.atoms.empty()) {
+                frames.push_back(frame);
+            }
+        } else if (isXYZFormat(content)) {
+            LOG_INFO("Detected XYZ format in clipboard.");
+            frames = readMultiXYZ(content);
+        } else {
+            LOG_INFO("Invalid format in clipboard (not XYZ or CHG).");
             return;
         }
         
         double estimatedMemoryMB = (content.length() * 8.0) / (1024.0 * 1024.0);
         LOG_INFO("Processing " + std::to_string(content.length()) + " characters (estimated " + 
                 std::to_string(static_cast<int>(estimatedMemoryMB)) + "MB memory usage)");
-        
-        std::vector<Frame> frames = readMultiXYZ(content);
         if (frames.empty()) {
             LOG_ERROR("Failed to parse XYZ data.");
             return;
@@ -560,7 +573,7 @@ bool processFileConversion(const std::string& filepath) {
         std::string ext = std::filesystem::path(filepath).extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         
-        if (ext != ".xyz" && ext != ".trj") {
+        if (ext != ".xyz" && ext != ".trj" && ext != ".chg") {
             LOG_ERROR("Unsupported file format: " + ext);
             showTrayNotification("XYZ Monitor", "不支持的文件格式: " + ext, NIIF_ERROR);
             return false;
@@ -593,9 +606,23 @@ bool processFileConversion(const std::string& filepath) {
             return false;
         }
         
-        // 验证XYZ格式
-        if (!isXYZFormat(content)) {
-            LOG_ERROR("Invalid XYZ format in file: " + filepath);
+        // 解析文件格式
+        std::vector<Frame> frames;
+        bool isChg = false;
+        
+        // 根据扩展名或内容检测格式
+        if (ext == ".chg" || (g_config.tryParseChgFormat && isChgFormat(content))) {
+            LOG_INFO("Processing CHG format file: " + filepath);
+            isChg = true;
+            Frame frame = readChgFrame(content);
+            if (!frame.atoms.empty()) {
+                frames.push_back(frame);
+            }
+        } else if (isXYZFormat(content)) {
+            LOG_INFO("Processing XYZ format file: " + filepath);
+            frames = readMultiXYZ(content);
+        } else {
+            LOG_ERROR("Invalid file format (not XYZ or CHG): " + filepath);
             showTrayNotification("XYZ Monitor", "文件格式无效: " + filepath, NIIF_ERROR);
             return false;
         }
@@ -603,9 +630,6 @@ bool processFileConversion(const std::string& filepath) {
         double estimatedMemoryMB = (content.length() * 8.0) / (1024.0 * 1024.0);
         LOG_INFO("Processing " + std::to_string(content.length()) + " characters from file (estimated " + 
                 std::to_string(static_cast<int>(estimatedMemoryMB)) + "MB memory usage)");
-        
-        // 解析XYZ数据
-        std::vector<Frame> frames = readMultiXYZ(content);
         if (frames.empty()) {
             LOG_ERROR("Failed to parse XYZ data from file: " + filepath);
             showTrayNotification("XYZ Monitor", "解析XYZ数据失败: " + filepath, NIIF_ERROR);

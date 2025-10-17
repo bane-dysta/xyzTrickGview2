@@ -18,6 +18,15 @@ struct Config {
     // 新增内存配置项
     int maxMemoryMB = 500;  // 默认500MB
     size_t maxClipboardChars = 0;  // 自动计算，0表示使用内存计算
+    
+    // XYZ列定义 (1-based索引)
+    int elementColumn = 1;  // 元素符号所在列
+    int xColumn = 2;        // X坐标所在列
+    int yColumn = 3;        // Y坐标所在列
+    int zColumn = 4;        // Z坐标所在列
+    
+    // CHG格式支持
+    bool tryParseChgFormat = false;  // 是否尝试以CHG格式解析剪切板文本
 };
 
 // 全局配置实例

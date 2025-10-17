@@ -1,5 +1,6 @@
 #include "converter.h"
 #include "logger.h"
+#include "config.h"
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -81,12 +82,16 @@ OptimizationInfo parseOptimizationInfo(const std::string& comment) {
 // 检查是否为有效的坐标行
 bool isValidCoordinateLine(const std::string& line) {
     std::vector<std::string> parts = splitWhitespace(line);
-    if (parts.size() < 4) return false;
+    
+    // 需要足够的列来包含element和xyz
+    int maxCol = std::max({g_config.elementColumn, g_config.xColumn, g_config.yColumn, g_config.zColumn});
+    if (parts.size() < static_cast<size_t>(maxCol)) return false;
     
     try {
-        double x = std::stod(parts[1]);
-        double y = std::stod(parts[2]);
-        double z = std::stod(parts[3]);
+        // 验证xyz列是否为有效的数字（索引从0开始，所以要减1）
+        double x = std::stod(parts[g_config.xColumn - 1]);
+        double y = std::stod(parts[g_config.yColumn - 1]);
+        double z = std::stod(parts[g_config.zColumn - 1]);
         (void)x; (void)y; (void)z;
         return true;
     } catch (const std::exception&) {
@@ -165,6 +170,79 @@ bool isXYZFormat(const std::string& content) {
     }
 }
 
+// 检查是否为CHG格式
+bool isChgFormat(const std::string& content) {
+    try {
+        if (content.empty()) {
+            LOG_DEBUG("Content is empty");
+            return false;
+        }
+        
+        if (content.find('\0') != std::string::npos) {
+            LOG_DEBUG("Content contains binary data");
+            return false;
+        }
+        
+        std::vector<std::string> lines = split(content, '\n');
+        if (lines.empty()) {
+            LOG_DEBUG("No lines found in content");
+            return false;
+        }
+        
+        int validLines = 0;
+        int totalNonEmptyLines = 0;
+        
+        for (const std::string& line : lines) {
+            std::string trimmedLine = trim(line);
+            // 跳过空行和注释行
+            if (trimmedLine.empty() || trimmedLine[0] == '#') {
+                continue;
+            }
+            
+            totalNonEmptyLines++;
+            
+            std::vector<std::string> parts = splitWhitespace(trimmedLine);
+            // CHG格式需要有5列：Element X Y Z Charge
+            if (parts.size() >= 5) {
+                try {
+                    // 验证第一列是元素符号（应该是字母开头）
+                    if (parts[0].empty() || !std::isalpha(parts[0][0])) {
+                        continue;
+                    }
+                    
+                    // 验证第2、3、4、5列是数字
+                    std::stod(parts[1]);  // X
+                    std::stod(parts[2]);  // Y
+                    std::stod(parts[3]);  // Z
+                    std::stod(parts[4]);  // Charge
+                    
+                    validLines++;
+                } catch (const std::exception&) {
+                    // 不是有效的数字
+                    continue;
+                }
+            }
+            
+            // 只检查前几行
+            if (totalNonEmptyLines >= 5) {
+                break;
+            }
+        }
+        
+        // 至少有3行有效的CHG格式数据
+        bool isChg = (validLines >= 3);
+        if (isChg) {
+            LOG_DEBUG("Detected CHG format");
+        } else {
+            LOG_DEBUG("Not recognized as CHG format");
+        }
+        return isChg;
+    } catch (const std::exception& e) {
+        LOG_ERROR("Exception in isChgFormat: " + std::string(e.what()));
+        return false;
+    }
+}
+
 // 读取单帧XYZ数据
 bool readXYZFrame(const std::vector<std::string>& lines, size_t startLine, Frame& frame, size_t& nextStart) {
     if (startLine >= lines.size()) return false;
@@ -185,13 +263,14 @@ bool readXYZFrame(const std::vector<std::string>& lines, size_t startLine, Frame
             if (lineIndex >= lines.size()) break;
             
             std::vector<std::string> parts = splitWhitespace(lines[lineIndex]);
-            if (parts.size() >= 4) {
+            int maxCol = std::max({g_config.elementColumn, g_config.xColumn, g_config.yColumn, g_config.zColumn});
+            if (parts.size() >= static_cast<size_t>(maxCol)) {
                 try {
                     Atom atom;
-                    atom.symbol = parts[0];
-                    atom.x = std::stod(parts[1]);
-                    atom.y = std::stod(parts[2]);
-                    atom.z = std::stod(parts[3]);
+                    atom.symbol = parts[g_config.elementColumn - 1];
+                    atom.x = std::stod(parts[g_config.xColumn - 1]);
+                    atom.y = std::stod(parts[g_config.yColumn - 1]);
+                    atom.z = std::stod(parts[g_config.zColumn - 1]);
                     frame.atoms.push_back(atom);
                 } catch (const std::exception& e) {
                     LOG_WARNING("Failed to parse atom at line " + std::to_string(lineIndex) + ": " + std::string(e.what()));
@@ -244,13 +323,14 @@ std::vector<Frame> readMultiXYZ(const std::string& content) {
             
             for (const std::string& line : lines) {
                 std::vector<std::string> parts = splitWhitespace(line);
-                if (parts.size() >= 4) {
+                int maxCol = std::max({g_config.elementColumn, g_config.xColumn, g_config.yColumn, g_config.zColumn});
+                if (parts.size() >= static_cast<size_t>(maxCol)) {
                     try {
                         Atom atom;
-                        atom.symbol = parts[0];
-                        atom.x = std::stod(parts[1]);
-                        atom.y = std::stod(parts[2]);
-                        atom.z = std::stod(parts[3]);
+                        atom.symbol = parts[g_config.elementColumn - 1];
+                        atom.x = std::stod(parts[g_config.xColumn - 1]);
+                        atom.y = std::stod(parts[g_config.yColumn - 1]);
+                        atom.z = std::stod(parts[g_config.zColumn - 1]);
                         frame.atoms.push_back(atom);
                     } catch (const std::exception& e) {
                         LOG_WARNING("Failed to parse simplified format line: " + std::string(e.what()));
@@ -270,6 +350,68 @@ std::vector<Frame> readMultiXYZ(const std::string& content) {
     }
     
     return frames;
+}
+
+// 读取CHG格式数据
+Frame readChgFrame(const std::string& content) {
+    Frame frame;
+    frame.comment = "CHG Format (Element X Y Z Charge)";
+    
+    try {
+        std::vector<std::string> lines = split(content, '\n');
+        
+        if (lines.empty()) {
+            LOG_DEBUG("No lines to process");
+            return frame;
+        }
+        
+        LOG_DEBUG("Processing CHG format");
+        
+        for (const std::string& line : lines) {
+            std::string trimmedLine = trim(line);
+            
+            // 跳过空行和注释行
+            if (trimmedLine.empty() || trimmedLine[0] == '#') {
+                continue;
+            }
+            
+            std::vector<std::string> parts = splitWhitespace(trimmedLine);
+            // CHG格式：Element X Y Z Charge (至少5列)
+            if (parts.size() >= 5) {
+                try {
+                    // 验证第一列是元素符号
+                    if (parts[0].empty() || !std::isalpha(parts[0][0])) {
+                        LOG_WARNING("Invalid element symbol in CHG line: " + trimmedLine);
+                        continue;
+                    }
+                    
+                    Atom atom;
+                    atom.symbol = parts[0];
+                    atom.x = std::stod(parts[1]);
+                    atom.y = std::stod(parts[2]);
+                    atom.z = std::stod(parts[3]);
+                    atom.charge = std::stod(parts[4]);  // 第5列是电荷
+                    
+                    frame.atoms.push_back(atom);
+                } catch (const std::exception& e) {
+                    LOG_WARNING("Failed to parse CHG format line: " + trimmedLine + ", error: " + std::string(e.what()));
+                    continue;
+                }
+            } else {
+                LOG_WARNING("CHG line has insufficient columns: " + trimmedLine);
+            }
+        }
+        
+        if (frame.atoms.empty()) {
+            LOG_WARNING("No valid atoms found in CHG format");
+        } else {
+            LOG_INFO("Parsed " + std::to_string(frame.atoms.size()) + " atoms from CHG format");
+        }
+    } catch (const std::exception& e) {
+        LOG_ERROR("Exception in readChgFrame: " + std::string(e.what()));
+    }
+    
+    return frame;
 }
 
 // 解析Gaussian clipboard文件
@@ -480,13 +622,48 @@ std::string writeGaussianLogGeometry(const Frame& frame, int frameNumber, const 
     } else {
         oss << " RMS     Displacement     1.000000     " << std::setw(8) << RMS_DISP_THRESHOLD << "     NO\n";
     }
+    oss << "GradGradGradGradGradGradGradGradGradGradGradGradGradGradGradGradGradGrad\n";
+    // 检查是否有电荷数据（任意一个原子的charge不为0）
+    bool hasChargeData = false;
+    for (const auto& atom : frame.atoms) {
+        if (atom.charge != 0.0) {
+            hasChargeData = true;
+            break;
+        }
+    }
+    
+    // 如果有电荷数据，写入Mulliken charges部分
+    if (hasChargeData) {
+        
+        oss << " \n";
+        oss << "          Condensed to atoms (all electrons):\n";
+        oss << " Mulliken charges and spin densities:\n";
+        oss << "               1          2\n";
+        
+        for (size_t i = 0; i < frame.atoms.size(); ++i) {
+            const Atom& atom = frame.atoms[i];
+            oss << "     " << std::setw(2) << (i + 1) << "  " 
+                << std::setw(2) << std::left << atom.symbol << std::right << "   "
+                << std::fixed << std::setprecision(6) << std::setw(8) << atom.charge 
+                << "  " << std::setw(8) << 0.0 << "\n";  // spin density设为0
+        }
+        
+        // 计算电荷总和
+        double totalCharge = 0.0;
+        for (const auto& atom : frame.atoms) {
+            totalCharge += atom.charge;
+        }
+        
+        oss << "\n Sum of Mulliken charges =  " << std::fixed << std::setprecision(5) 
+            << std::setw(8) << totalCharge << "   " << std::setw(8) << 0.0 << "\n";
+    }
     
     return oss.str();
 }
 
 // 写入Gaussian LOG尾部
 std::string writeGaussianLogFooter() {
-    return "GradGradGradGradGradGradGradGradGradGradGradGradGradGradGradGradGradGrad\n"
+    return ""
            " Normal termination of Gaussian\n";
 }
 
