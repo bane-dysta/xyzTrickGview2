@@ -622,26 +622,40 @@ std::string writeGaussianLogGeometry(const Frame& frame, int frameNumber, const 
     } else {
         oss << " RMS     Displacement     1.000000     " << std::setw(8) << RMS_DISP_THRESHOLD << "     NO\n";
     }
+    
+    return oss.str();
+}
+
+// 写入Gaussian LOG尾部
+std::string writeGaussianLogFooter(const std::vector<Frame>& frames) {
+    std::ostringstream oss;
+    
     oss << "GradGradGradGradGradGradGradGradGradGradGradGradGradGradGradGradGradGrad\n";
+    
     // 检查是否有电荷数据（任意一个原子的charge不为0）
     bool hasChargeData = false;
-    for (const auto& atom : frame.atoms) {
-        if (atom.charge != 0.0) {
-            hasChargeData = true;
-            break;
+    for (const auto& frame : frames) {
+        for (const auto& atom : frame.atoms) {
+            if (atom.charge != 0.0) {
+                hasChargeData = true;
+                break;
+            }
         }
+        if (hasChargeData) break;
     }
     
     // 如果有电荷数据，写入Mulliken charges部分
     if (hasChargeData) {
+        // 使用最后一帧的原子信息
+        const Frame& lastFrame = frames.back();
         
         oss << " \n";
         oss << "          Condensed to atoms (all electrons):\n";
         oss << " Mulliken charges and spin densities:\n";
         oss << "               1          2\n";
         
-        for (size_t i = 0; i < frame.atoms.size(); ++i) {
-            const Atom& atom = frame.atoms[i];
+        for (size_t i = 0; i < lastFrame.atoms.size(); ++i) {
+            const Atom& atom = lastFrame.atoms[i];
             oss << "     " << std::setw(2) << (i + 1) << "  " 
                 << std::setw(2) << std::left << atom.symbol << std::right << "   "
                 << std::fixed << std::setprecision(6) << std::setw(8) << atom.charge 
@@ -650,7 +664,7 @@ std::string writeGaussianLogGeometry(const Frame& frame, int frameNumber, const 
         
         // 计算电荷总和
         double totalCharge = 0.0;
-        for (const auto& atom : frame.atoms) {
+        for (const auto& atom : lastFrame.atoms) {
             totalCharge += atom.charge;
         }
         
@@ -658,13 +672,9 @@ std::string writeGaussianLogGeometry(const Frame& frame, int frameNumber, const 
             << std::setw(8) << totalCharge << "   " << std::setw(8) << 0.0 << "\n";
     }
     
+    oss << " Normal termination of Gaussian\n";
+    
     return oss.str();
-}
-
-// 写入Gaussian LOG尾部
-std::string writeGaussianLogFooter() {
-    return ""
-           " Normal termination of Gaussian\n";
 }
 
 // 转换为Gaussian LOG格式
@@ -684,7 +694,7 @@ std::string convertToGaussianLog(const std::vector<Frame>& frames) {
             oss << writeGaussianLogGeometry(frames[i], static_cast<int>(i + 1), previousFrame);
         }
         
-        oss << writeGaussianLogFooter();
+        oss << writeGaussianLogFooter(frames);
         
         LOG_DEBUG("Converted " + std::to_string(frames.size()) + " frames to Gaussian log format");
         return oss.str();
