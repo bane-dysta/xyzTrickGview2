@@ -1,7 +1,19 @@
 #pragma once
 
 #include <string>
+#include <vector>
 #include <windows.h>
+
+// 插件结构体
+struct Plugin {
+    std::string name;           // 插件名称
+    std::string cmd;            // 命令
+    std::string hotkey;         // 热键（可选）
+    bool enabled;              // 是否启用
+    UINT hotkeyId;              // 热键ID（内部使用）
+    
+    Plugin() : enabled(true), hotkeyId(0) {}
+};
 
 // 配置结构体
 struct Config {
@@ -27,6 +39,9 @@ struct Config {
     
     // CHG格式支持
     bool tryParseChgFormat = false;  // 是否尝试以CHG格式解析剪切板文本
+    
+    // 插件系统
+    std::vector<Plugin> plugins;  // 插件列表
 };
 
 // 全局配置实例
@@ -38,3 +53,12 @@ bool saveConfig(const std::string& configFile);
 bool reloadConfiguration();
 bool parseHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& vk);
 std::string getExecutableDirectory();
+
+// 插件相关函数
+bool loadPlugins();
+bool savePlugins();
+bool addPlugin(const std::string& name, const std::string& cmd, const std::string& hotkey = "");
+bool removePlugin(const std::string& name);
+bool executePlugin(const std::string& name);
+bool registerPluginHotkeys();
+bool unregisterPluginHotkeys();

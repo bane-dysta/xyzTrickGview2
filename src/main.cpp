@@ -184,6 +184,25 @@ void showTrayMenu(HWND hwnd, POINT pt) {
     if (hMenu) {
         AppendMenuA(hMenu, MF_STRING, ID_TRAY_ABOUT, (APP_NAME " v" VERSION_STRING " - by " APP_AUTHOR));
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+        
+        // 添加插件菜单项
+        if (!g_config.plugins.empty()) {
+            HMENU hPluginMenu = CreatePopupMenu();
+            if (hPluginMenu) {
+                for (const auto& plugin : g_config.plugins) {
+                    if (plugin.enabled) {
+                        std::string menuText = plugin.name;
+                        if (!plugin.hotkey.empty()) {
+                            menuText += " (" + plugin.hotkey + ")";
+                        }
+                        AppendMenuA(hPluginMenu, MF_STRING, 2000 + (&plugin - &g_config.plugins[0]), menuText.c_str());
+                    }
+                }
+                AppendMenuA(hMenu, MF_POPUP, (UINT_PTR)hPluginMenu, "Plugins");
+            }
+            AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
+        }
+        
         AppendMenuA(hMenu, MF_STRING, ID_TRAY_RELOAD, "Reload Configuration");
         AppendMenuA(hMenu, MF_SEPARATOR, 0, NULL);
         AppendMenuA(hMenu, MF_STRING, ID_TRAY_EXIT, "Exit");
@@ -499,6 +518,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     processClipboardXYZToGView();
                 } else if (wParam == HOTKEY_GVIEW_TO_XYZ) {
                     processGViewClipboardToXYZ();
+                } else if (wParam >= 100) {
+                    // 处理插件热键 (ID从100开始)
+                    for (const auto& plugin : g_config.plugins) {
+                        if (plugin.hotkeyId == wParam) {
+                            executePlugin(plugin.name);
+                            break;
+                        }
+                    }
                 }
                 return 0;
                 
@@ -539,6 +566,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     case ID_TRAY_EXIT:
                         g_running = false;
                         PostQuitMessage(0);
+                        break;
+                        
+                    default:
+                        // 处理插件菜单项 (ID从2000开始)
+                        if (wParam >= 2000) {
+                            int pluginIndex = wParam - 2000;
+                            if (pluginIndex < g_config.plugins.size()) {
+                                executePlugin(g_config.plugins[pluginIndex].name);
+                            }
+                        }
                         break;
                 }
                 return 0;
@@ -767,6 +804,11 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         
+        // 注册插件热键
+        if (!registerPluginHotkeys()) {
+            LOG_WARNING("Failed to register some plugin hotkeys");
+        }
+        
         LOG_INFO("XYZ Monitor is running. Check system tray for options.");
         LOG_INFO("Press " + g_config.hotkey + " to convert clipboard XYZ to GView.");
         LOG_INFO("Press " + g_config.hotkeyReverse + " to convert GView clipboard to XYZ.");
@@ -781,6 +823,7 @@ int main(int argc, char* argv[]) {
         // 清理
         UnregisterHotKey(g_hwnd, HOTKEY_XYZ_TO_GVIEW);
         UnregisterHotKey(g_hwnd, HOTKEY_GVIEW_TO_XYZ);
+        unregisterPluginHotkeys();
         cleanupTrayIcon();
         DestroyMenuWindow();
         DestroyWindow(g_hwnd);

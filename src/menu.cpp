@@ -29,10 +29,20 @@ MenuWindow* g_menuWindow = nullptr;
 #define ID_Z_COLUMN_EDIT 1017
 #define ID_CHG_FORMAT_CHECKBOX 1018
 
+// 插件管理控件ID
+#define ID_PLUGIN_LIST 1020
+#define ID_PLUGIN_NAME_EDIT 1021
+#define ID_PLUGIN_CMD_EDIT 1022
+#define ID_PLUGIN_HOTKEY_EDIT 1023
+#define ID_ADD_PLUGIN_BUTTON 1024
+#define ID_REMOVE_PLUGIN_BUTTON 1025
+#define ID_TEST_PLUGIN_BUTTON 1026
+
 // 选项卡索引
 #define TAB_GENERAL 0
 #define TAB_CONTROL 1
 #define TAB_ABOUT 2
+#define TAB_PLUGINS 3
 
 MenuWindow::MenuWindow(HWND parent) : m_hwnd(nullptr), m_hwndParent(parent), m_tabControl(nullptr),
     m_hotkeyEdit(nullptr), m_hotkeyReverseEdit(nullptr), m_gviewPathEdit(nullptr), m_gaussianClipboardEdit(nullptr),
@@ -42,6 +52,9 @@ MenuWindow::MenuWindow(HWND parent) : m_hwnd(nullptr), m_hwndParent(parent), m_t
     m_elementColumnEdit(nullptr), m_xColumnEdit(nullptr), m_yColumnEdit(nullptr), m_zColumnEdit(nullptr),
     m_chgFormatCheckbox(nullptr),
     m_controlDescLabel(nullptr), m_elementColumnLabel(nullptr), m_xyzColumnsLabel(nullptr),
+    m_pluginListBox(nullptr), m_pluginNameEdit(nullptr), m_pluginCmdEdit(nullptr), m_pluginHotkeyEdit(nullptr),
+    m_addPluginButton(nullptr), m_removePluginButton(nullptr), m_testPluginButton(nullptr),
+    m_pluginListLabel(nullptr), m_pluginNameLabel(nullptr), m_pluginCmdLabel(nullptr), m_pluginHotkeyLabel(nullptr),
     m_applyButton(nullptr), m_cancelButton(nullptr), m_okButton(nullptr), m_font(nullptr) {
     LoadCurrentConfig();
 }
@@ -186,6 +199,7 @@ void MenuWindow::OnCreate() {
     CreateGeneralTab();
     CreateControlTab();
     CreateAboutTab();
+    CreatePluginsTab();
     
     // 默认显示第一个选项卡
     ShowTab(TAB_GENERAL);
@@ -234,6 +248,18 @@ void MenuWindow::OnCommand(WPARAM wParam, LPARAM /*lParam*/) {
         case ID_FORUM_LINK:
             OnOpenLink(FEEDBACK_FORUM);
             break;
+            
+        case ID_ADD_PLUGIN_BUTTON:
+            OnAddPlugin();
+            break;
+            
+        case ID_REMOVE_PLUGIN_BUTTON:
+            OnRemovePlugin();
+            break;
+            
+        case ID_TEST_PLUGIN_BUTTON:
+            OnTestPlugin();
+            break;
     }
 }
 
@@ -277,6 +303,9 @@ void MenuWindow::CreateTabControl() {
         
         tci.pszText = const_cast<char*>("About");
         TabCtrl_InsertItem(m_tabControl, TAB_ABOUT, &tci);
+        
+        tci.pszText = const_cast<char*>("Plugins");
+        TabCtrl_InsertItem(m_tabControl, TAB_PLUGINS, &tci);
     }
 }
 
@@ -471,6 +500,20 @@ void MenuWindow::ShowTab(int tabIndex) {
             ShowWindow(m_linksLabel, SW_SHOW);
             ShowWindow(m_githubLink, SW_SHOW);
             ShowWindow(m_forumLink, SW_SHOW);
+            break;
+            
+        case TAB_PLUGINS:
+            ShowWindow(m_pluginListLabel, SW_SHOW);
+            ShowWindow(m_pluginListBox, SW_SHOW);
+            ShowWindow(m_pluginNameLabel, SW_SHOW);
+            ShowWindow(m_pluginNameEdit, SW_SHOW);
+            ShowWindow(m_pluginCmdLabel, SW_SHOW);
+            ShowWindow(m_pluginCmdEdit, SW_SHOW);
+            ShowWindow(m_pluginHotkeyLabel, SW_SHOW);
+            ShowWindow(m_pluginHotkeyEdit, SW_SHOW);
+            ShowWindow(m_addPluginButton, SW_SHOW);
+            ShowWindow(m_removePluginButton, SW_SHOW);
+            ShowWindow(m_testPluginButton, SW_SHOW);
             break;
     }
     
@@ -693,6 +736,169 @@ void MenuWindow::OnBrowseGaussianClipboard() {
 
 void MenuWindow::OnOpenLink(const std::string& url) {
     ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
+}
+
+void MenuWindow::CreatePluginsTab() {
+    // 插件列表
+    m_pluginListLabel = CreateWindowA("STATIC", "Installed Plugins:", WS_CHILD | WS_VISIBLE,
+                  30, 50, 200, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_pluginListLabel, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    m_pluginListBox = CreateWindowA("LISTBOX", "", WS_CHILD | WS_VISIBLE | WS_BORDER | WS_VSCROLL,
+                                   30, 75, 200, 265, m_hwnd, (HMENU)ID_PLUGIN_LIST,
+                                   GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_pluginListBox, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // 插件名称
+    m_pluginNameLabel = CreateWindowA("STATIC", "Plugin Name:", WS_CHILD | WS_VISIBLE,
+                  250, 50, 100, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_pluginNameLabel, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    m_pluginNameEdit = CreateWindowA("EDIT", "",
+                                    WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+                                    250, 75, 200, 25, m_hwnd, (HMENU)ID_PLUGIN_NAME_EDIT,
+                                    GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_pluginNameEdit, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // 插件命令
+    m_pluginCmdLabel = CreateWindowA("STATIC", "Command:", WS_CHILD | WS_VISIBLE,
+                  250, 110, 100, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_pluginCmdLabel, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    m_pluginCmdEdit = CreateWindowA("EDIT", "",
+                                    WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+                                    250, 135, 200, 25, m_hwnd, (HMENU)ID_PLUGIN_CMD_EDIT,
+                                    GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_pluginCmdEdit, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // 插件热键
+    m_pluginHotkeyLabel = CreateWindowA("STATIC", "Hotkey (optional):", WS_CHILD | WS_VISIBLE,
+                  250, 170, 150, 20, m_hwnd, NULL, GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_pluginHotkeyLabel, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    m_pluginHotkeyEdit = CreateWindowA("EDIT", "",
+                                       WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
+                                       250, 195, 200, 25, m_hwnd, (HMENU)ID_PLUGIN_HOTKEY_EDIT,
+                                       GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_pluginHotkeyEdit, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // 按钮
+    m_addPluginButton = CreateWindowA("BUTTON", "Add Plugin", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                                     250, 230, 80, 25, m_hwnd, (HMENU)ID_ADD_PLUGIN_BUTTON,
+                                     GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_addPluginButton, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    m_removePluginButton = CreateWindowA("BUTTON", "Remove", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                                        340, 230, 80, 25, m_hwnd, (HMENU)ID_REMOVE_PLUGIN_BUTTON,
+                                        GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_removePluginButton, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    m_testPluginButton = CreateWindowA("BUTTON", "Run", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                                       250, 265, 80, 25, m_hwnd, (HMENU)ID_TEST_PLUGIN_BUTTON,
+                                       GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_testPluginButton, WM_SETFONT, (WPARAM)m_font, TRUE);
+    
+    // 初始化插件列表
+    UpdatePluginList();
+}
+
+void MenuWindow::OnAddPlugin() {
+    char nameBuffer[256];
+    char cmdBuffer[512];
+    char hotkeyBuffer[256];
+    
+    GetWindowTextA(m_pluginNameEdit, nameBuffer, sizeof(nameBuffer));
+    GetWindowTextA(m_pluginCmdEdit, cmdBuffer, sizeof(cmdBuffer));
+    GetWindowTextA(m_pluginHotkeyEdit, hotkeyBuffer, sizeof(hotkeyBuffer));
+    
+    std::string name = nameBuffer;
+    std::string cmd = cmdBuffer;
+    std::string hotkey = hotkeyBuffer;
+    
+    if (name.empty() || cmd.empty()) {
+        MessageBoxA(m_hwnd, "Plugin name and command are required!", "Validation Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+    
+    if (addPlugin(name, cmd, hotkey)) {
+        UpdatePluginList();
+        MessageBoxA(m_hwnd, "Plugin added successfully!", "Success", MB_OK | MB_ICONINFORMATION);
+        
+        // 清空输入框
+        SetWindowTextA(m_pluginNameEdit, "");
+        SetWindowTextA(m_pluginCmdEdit, "");
+        SetWindowTextA(m_pluginHotkeyEdit, "");
+    } else {
+        MessageBoxA(m_hwnd, "Failed to add plugin!", "Error", MB_OK | MB_ICONERROR);
+    }
+}
+
+void MenuWindow::OnRemovePlugin() {
+    int selectedIndex = SendMessage(m_pluginListBox, LB_GETCURSEL, 0, 0);
+    if (selectedIndex == LB_ERR) {
+        MessageBoxA(m_hwnd, "Please select a plugin to remove!", "No Selection", MB_OK | MB_ICONWARNING);
+        return;
+    }
+    
+    char nameBuffer[256];
+    SendMessage(m_pluginListBox, LB_GETTEXT, selectedIndex, (LPARAM)nameBuffer);
+    std::string name = nameBuffer;
+    
+    if (MessageBoxA(m_hwnd, ("Are you sure you want to remove plugin '" + name + "'?").c_str(), 
+                    "Confirm Removal", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+        if (removePlugin(name)) {
+            UpdatePluginList();
+            MessageBoxA(m_hwnd, "Plugin removed successfully!", "Success", MB_OK | MB_ICONINFORMATION);
+        } else {
+            MessageBoxA(m_hwnd, "Failed to remove plugin!", "Error", MB_OK | MB_ICONERROR);
+        }
+    }
+}
+
+void MenuWindow::OnTestPlugin() {
+    int selectedIndex = SendMessage(m_pluginListBox, LB_GETCURSEL, 0, 0);
+    if (selectedIndex == LB_ERR) {
+        // 使用气泡通知而不是对话框
+        extern void showTrayNotification(const std::string& title, const std::string& message, DWORD iconType = NIIF_INFO);
+        showTrayNotification("XYZ Monitor", "Please select a plugin to test!", NIIF_WARNING);
+        return;
+    }
+    
+    char nameBuffer[256];
+    SendMessage(m_pluginListBox, LB_GETTEXT, selectedIndex, (LPARAM)nameBuffer);
+    std::string name = nameBuffer;
+    
+    // 直接执行插件，结果通过气泡通知显示
+    executePlugin(name);
+}
+
+void MenuWindow::OnPluginSelectionChanged() {
+    int selectedIndex = SendMessage(m_pluginListBox, LB_GETCURSEL, 0, 0);
+    if (selectedIndex != LB_ERR) {
+        char nameBuffer[256];
+        SendMessage(m_pluginListBox, LB_GETTEXT, selectedIndex, (LPARAM)nameBuffer);
+        std::string name = nameBuffer;
+        
+        // 查找插件信息并填充到编辑框
+        for (const auto& plugin : g_config.plugins) {
+            if (plugin.name == name) {
+                SetWindowTextA(m_pluginNameEdit, plugin.name.c_str());
+                SetWindowTextA(m_pluginCmdEdit, plugin.cmd.c_str());
+                SetWindowTextA(m_pluginHotkeyEdit, plugin.hotkey.c_str());
+                break;
+            }
+        }
+    }
+}
+
+void MenuWindow::UpdatePluginList() {
+    SendMessage(m_pluginListBox, LB_RESETCONTENT, 0, 0);
+    
+    for (const auto& plugin : g_config.plugins) {
+        if (plugin.enabled) {
+            SendMessage(m_pluginListBox, LB_ADDSTRING, 0, (LPARAM)plugin.name.c_str());
+        }
+    }
 }
 
 // 全局函数实现

@@ -47,6 +47,21 @@ private:
     HWND m_elementColumnLabel;
     HWND m_xyzColumnsLabel;
     
+    // Plugins tab controls
+    HWND m_pluginListBox;
+    HWND m_pluginNameEdit;
+    HWND m_pluginCmdEdit;
+    HWND m_pluginHotkeyEdit;
+    HWND m_addPluginButton;
+    HWND m_removePluginButton;
+    HWND m_testPluginButton;
+    
+    // Plugins tab labels
+    HWND m_pluginListLabel;
+    HWND m_pluginNameLabel;
+    HWND m_pluginCmdLabel;
+    HWND m_pluginHotkeyLabel;
+    
     // Common controls
     HWND m_applyButton;
     HWND m_cancelButton;
@@ -83,6 +98,7 @@ private:
     void CreateGeneralTab();
     void CreateControlTab();
     void CreateAboutTab();
+    void CreatePluginsTab();
     
     // 工具函数
     void UpdateControls();
@@ -94,6 +110,13 @@ private:
     void OnBrowseGViewPath();
     void OnBrowseGaussianClipboard();
     void OnOpenLink(const std::string& url);
+    
+    // 插件管理函数
+    void OnAddPlugin();
+    void OnRemovePlugin();
+    void OnTestPlugin();
+    void OnPluginSelectionChanged();
+    void UpdatePluginList();
     
 public:
     MenuWindow(HWND parent);

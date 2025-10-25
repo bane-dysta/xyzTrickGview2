@@ -6,6 +6,9 @@
 #include <algorithm>
 #include <filesystem>
 
+// 声明外部函数
+extern void showTrayNotification(const std::string& title, const std::string& message, DWORD iconType = NIIF_INFO);
+
 // 全局配置实例
 Config g_config;
 
@@ -20,6 +23,7 @@ bool loadConfig(const std::string& configFile) {
             std::string tempDirPath = exeDir.empty() ? "temp" : exeDir + "\\temp";
             std::string logFilePath = exeDir.empty() ? "logs\\xyz_monitor.log" : exeDir + "\\logs\\xyz_monitor.log";
             
+            outFile << "[main]\n";
             outFile << "hotkey=CTRL+ALT+X\n";
             outFile << "hotkey_reverse=CTRL+ALT+G\n";
             outFile << "gview_path=gview.exe\n";
@@ -37,6 +41,8 @@ bool loadConfig(const std::string& configFile) {
             outFile << "# XYZ Converter Column Definitions (1-based indexing)\n";
             outFile << "element_column=1\n";
             outFile << "xyz_columns=2,3,4\n";
+            outFile << "# CHG Format Support (format: Element X Y Z Charge)\n";
+            outFile << "try_parse_chg_format=false\n";
             outFile.close();
             std::cout << "Created default config file: " << configFile << std::endl;
         } else {
@@ -46,8 +52,16 @@ bool loadConfig(const std::string& configFile) {
     }
     
     std::string line;
+    std::string currentSection = "main";
+    
     while (std::getline(file, line)) {
         if (line.empty() || line[0] == '#') continue;
+        
+        // 检查是否是分区标记
+        if (line[0] == '[' && line.back() == ']') {
+            currentSection = line.substr(1, line.length() - 2);
+            continue;
+        }
         
         size_t pos = line.find('=');
         if (pos != std::string::npos) {
@@ -55,46 +69,83 @@ bool loadConfig(const std::string& configFile) {
             std::string value = trim(line.substr(pos + 1));
             
             try {
-                if (key == "hotkey") {
-                    g_config.hotkey = value;
-                } else if (key == "hotkey_reverse") {
-                    g_config.hotkeyReverse = value;
-                } else if (key == "gview_path") {
-                    g_config.gviewPath = value;
-                } else if (key == "gaussian_clipboard_path") {
-                    g_config.gaussianClipboardPath = value;
-                } else if (key == "temp_dir") {
-                    g_config.tempDir = value;
-                } else if (key == "log_file") {
-                    g_config.logFile = value;
-                } else if (key == "log_level") {
-                    g_config.logLevel = value;
-                } else if (key == "log_to_console") {
-                    g_config.logToConsole = (value == "true" || value == "1");
-                } else if (key == "log_to_file") {
-                    g_config.logToFile = (value == "true" || value == "1");
-                } else if (key == "wait_seconds") {
-                    g_config.waitSeconds = std::stoi(value);
-                } else if (key == "max_memory_mb") {
-                    g_config.maxMemoryMB = std::stoi(value);
-                    if (g_config.maxMemoryMB < 50) {
-                        LOG_WARNING("max_memory_mb is too small (" + std::to_string(g_config.maxMemoryMB) + "), setting to 50MB");
-                        g_config.maxMemoryMB = 50;
+                if (currentSection == "main") {
+                    if (key == "hotkey") {
+                        g_config.hotkey = value;
+                    } else if (key == "hotkey_reverse") {
+                        g_config.hotkeyReverse = value;
+                    } else if (key == "gview_path") {
+                        g_config.gviewPath = value;
+                    } else if (key == "gaussian_clipboard_path") {
+                        g_config.gaussianClipboardPath = value;
+                    } else if (key == "temp_dir") {
+                        g_config.tempDir = value;
+                    } else if (key == "log_file") {
+                        g_config.logFile = value;
+                    } else if (key == "log_level") {
+                        g_config.logLevel = value;
+                    } else if (key == "log_to_console") {
+                        g_config.logToConsole = (value == "true" || value == "1");
+                    } else if (key == "log_to_file") {
+                        g_config.logToFile = (value == "true" || value == "1");
+                    } else if (key == "wait_seconds") {
+                        g_config.waitSeconds = std::stoi(value);
+                    } else if (key == "max_memory_mb") {
+                        g_config.maxMemoryMB = std::stoi(value);
+                        if (g_config.maxMemoryMB < 50) {
+                            LOG_WARNING("max_memory_mb is too small (" + std::to_string(g_config.maxMemoryMB) + "), setting to 50MB");
+                            g_config.maxMemoryMB = 50;
+                        }
+                    } else if (key == "max_clipboard_chars") {
+                        size_t charLimit = std::stoull(value);
+                        g_config.maxClipboardChars = charLimit;
+                    } else if (key == "element_column") {
+                        g_config.elementColumn = std::stoi(value);
+                    } else if (key == "xyz_columns") {
+                        std::vector<std::string> parts = split(value, ',');
+                        if (parts.size() == 3) {
+                            g_config.xColumn = std::stoi(trim(parts[0]));
+                            g_config.yColumn = std::stoi(trim(parts[1]));
+                            g_config.zColumn = std::stoi(trim(parts[2]));
+                        }
+                    } else if (key == "try_parse_chg_format") {
+                        g_config.tryParseChgFormat = (value == "true" || value == "1");
                     }
-                } else if (key == "max_clipboard_chars") {
-                    size_t charLimit = std::stoull(value);
-                    g_config.maxClipboardChars = charLimit;
-                } else if (key == "element_column") {
-                    g_config.elementColumn = std::stoi(value);
-                } else if (key == "xyz_columns") {
-                    std::vector<std::string> parts = split(value, ',');
-                    if (parts.size() == 3) {
-                        g_config.xColumn = std::stoi(trim(parts[0]));
-                        g_config.yColumn = std::stoi(trim(parts[1]));
-                        g_config.zColumn = std::stoi(trim(parts[2]));
+                } else {
+                    // 处理插件配置
+                    if (key == "cmd") {
+                        // 查找或创建插件
+                        bool found = false;
+                        for (auto& plugin : g_config.plugins) {
+                            if (plugin.name == currentSection) {
+                                plugin.cmd = value;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            Plugin newPlugin;
+                            newPlugin.name = currentSection;
+                            newPlugin.cmd = value;
+                            g_config.plugins.push_back(newPlugin);
+                        }
+                    } else if (key == "hotkey") {
+                        // 查找或创建插件
+                        bool found = false;
+                        for (auto& plugin : g_config.plugins) {
+                            if (plugin.name == currentSection) {
+                                plugin.hotkey = value;
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            Plugin newPlugin;
+                            newPlugin.name = currentSection;
+                            newPlugin.hotkey = value;
+                            g_config.plugins.push_back(newPlugin);
+                        }
                     }
-                } else if (key == "try_parse_chg_format") {
-                    g_config.tryParseChgFormat = (value == "true" || value == "1");
                 }
             } catch (const std::exception& e) {
                 LOG_ERROR("Error parsing config value for key '" + key + "': " + std::string(e.what()));
@@ -119,6 +170,8 @@ bool saveConfig(const std::string& configFile) {
             return false;
         }
         
+        // 保存主配置
+        file << "[main]\n";
         file << "hotkey=" << g_config.hotkey << "\n";
         file << "hotkey_reverse=" << g_config.hotkeyReverse << "\n";
         file << "gview_path=" << g_config.gviewPath << "\n";
@@ -138,6 +191,17 @@ bool saveConfig(const std::string& configFile) {
         file << "xyz_columns=" << g_config.xColumn << "," << g_config.yColumn << "," << g_config.zColumn << "\n";
         file << "# CHG Format Support (format: Element X Y Z Charge)\n";
         file << "try_parse_chg_format=" << (g_config.tryParseChgFormat ? "true" : "false") << "\n";
+        
+        // 保存插件配置
+        for (const auto& plugin : g_config.plugins) {
+            if (plugin.enabled) {
+                file << "\n[" << plugin.name << "]\n";
+                file << "cmd=" << plugin.cmd << "\n";
+                if (!plugin.hotkey.empty()) {
+                    file << "hotkey=" << plugin.hotkey << "\n";
+                }
+            }
+        }
         
         file.close();
         LOG_INFO("Configuration saved to: " + configFile);
@@ -268,4 +332,129 @@ std::string getExecutableDirectory() {
         LOG_ERROR("Exception getting executable directory: " + std::string(e.what()));
         return "";
     }
+}
+
+// 插件相关函数实现
+bool loadPlugins() {
+    // 插件在loadConfig中已经加载，这里只是确认
+    LOG_INFO("Loaded " + std::to_string(g_config.plugins.size()) + " plugins");
+    return true;
+}
+
+bool savePlugins() {
+    // 插件保存通过saveConfig完成
+    return true;
+}
+
+bool addPlugin(const std::string& name, const std::string& cmd, const std::string& hotkey) {
+    // 检查是否已存在同名插件
+    for (auto& plugin : g_config.plugins) {
+        if (plugin.name == name) {
+            LOG_WARNING("Plugin '" + name + "' already exists, updating...");
+            plugin.cmd = cmd;
+            plugin.hotkey = hotkey;
+            plugin.enabled = true;
+            return true;
+        }
+    }
+    
+    // 添加新插件
+    Plugin newPlugin;
+    newPlugin.name = name;
+    newPlugin.cmd = cmd;
+    newPlugin.hotkey = hotkey;
+    newPlugin.enabled = true;
+    g_config.plugins.push_back(newPlugin);
+    
+    LOG_INFO("Added plugin: " + name);
+    return true;
+}
+
+bool removePlugin(const std::string& name) {
+    for (auto it = g_config.plugins.begin(); it != g_config.plugins.end(); ++it) {
+        if (it->name == name) {
+            g_config.plugins.erase(it);
+            LOG_INFO("Removed plugin: " + name);
+            return true;
+        }
+    }
+    LOG_WARNING("Plugin not found: " + name);
+    return false;
+}
+
+bool executePlugin(const std::string& name) {
+    for (const auto& plugin : g_config.plugins) {
+        if (plugin.name == name && plugin.enabled) {
+            LOG_INFO("Executing plugin: " + name + " -> " + plugin.cmd);
+            
+            try {
+                STARTUPINFOA si;
+                PROCESS_INFORMATION pi;
+                ZeroMemory(&si, sizeof(si));
+                si.cb = sizeof(si);
+                ZeroMemory(&pi, sizeof(pi));
+                
+                if (CreateProcessA(NULL, const_cast<char*>(plugin.cmd.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+                    CloseHandle(pi.hProcess);
+                    CloseHandle(pi.hThread);
+                    LOG_INFO("Plugin executed successfully: " + name);
+                    // 显示成功的气泡通知
+                    showTrayNotification("Plugin Executed", "Plugin '" + name + "' executed successfully!", NIIF_INFO);
+                    return true;
+                } else {
+                    DWORD error = GetLastError();
+                    LOG_ERROR("Failed to execute plugin '" + name + "' (Error: " + std::to_string(error) + ")");
+                    // 显示失败的气泡通知
+                    showTrayNotification("Plugin Error", "Failed to execute plugin '" + name + "' (Error: " + std::to_string(error) + ")", NIIF_ERROR);
+                    return false;
+                }
+            } catch (const std::exception& e) {
+                LOG_ERROR("Exception executing plugin '" + name + "': " + std::string(e.what()));
+                // 显示异常的气泡通知
+                showTrayNotification("Plugin Exception", "Exception executing plugin '" + name + "': " + std::string(e.what()), NIIF_ERROR);
+                return false;
+            }
+        }
+    }
+    LOG_WARNING("Plugin not found or disabled: " + name);
+    // 显示未找到插件的气泡通知
+    showTrayNotification("Plugin Not Found", "Plugin '" + name + "' not found or disabled!", NIIF_WARNING);
+    return false;
+}
+
+bool registerPluginHotkeys() {
+    extern HWND g_hwnd;
+    if (!g_hwnd) return false;
+    
+    UINT hotkeyId = 100; // 从100开始分配插件热键ID
+    for (auto& plugin : g_config.plugins) {
+        if (plugin.enabled && !plugin.hotkey.empty()) {
+            UINT modifiers, vk;
+            if (parseHotkey(plugin.hotkey, modifiers, vk)) {
+                if (RegisterHotKey(g_hwnd, hotkeyId, modifiers, vk)) {
+                    plugin.hotkeyId = hotkeyId;
+                    LOG_INFO("Registered plugin hotkey: " + plugin.name + " -> " + plugin.hotkey);
+                } else {
+                    DWORD error = GetLastError();
+                    LOG_ERROR("Failed to register plugin hotkey for '" + plugin.name + "' (Error: " + std::to_string(error) + ")");
+                }
+            }
+            hotkeyId++;
+        }
+    }
+    return true;
+}
+
+bool unregisterPluginHotkeys() {
+    extern HWND g_hwnd;
+    if (!g_hwnd) return false;
+    
+    for (auto& plugin : g_config.plugins) {
+        if (plugin.hotkeyId != 0) {
+            UnregisterHotKey(g_hwnd, plugin.hotkeyId);
+            plugin.hotkeyId = 0;
+            LOG_DEBUG("Unregistered plugin hotkey: " + plugin.name);
+        }
+    }
+    return true;
 }

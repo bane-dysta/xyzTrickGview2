@@ -1,9 +1,7 @@
-// x86_64-w64-mingw32-g++ -o clipchem3d_silent.exe clipchem3d_silent.cpp -static -static-libgcc -static-libstdc++
-// x86_64-w64-mingw32-g++ -o clipchem3d_silent.exe clipchem3d_silent.cpp -O2 -static -static-libgcc -static-libstdc++ -s
+// 编译命令：
+// x86_64-w64-mingw32-g++ -o clip_chem3d.exe clipchem3d_silent.cpp -mwindows -Wl,--subsystem,windows:6.0 -Wl,--entry,WinMainCRTStartup -static -static-libgcc -static-libstdc++ -O2 -s
 
 #include <windows.h>
-#include <iostream>
-#include <fstream>
 #include <string>
 #include <vector>
 #include <sstream>
@@ -25,7 +23,6 @@ std::string getCurrentTime() {
 
 std::string getChem3DFromClipboard() {
     if (!OpenClipboard(NULL)) {
-        std::cout << "ERROR: Cannot open clipboard" << std::endl;
         return "";
     }
     
@@ -44,7 +41,6 @@ std::string getChem3DFromClipboard() {
     }
     
     if (chem3dFormatId == 0) {
-        std::cout << "ERROR: No Chem3D format found in clipboard" << std::endl;
         CloseClipboard();
         return "";
     }
@@ -121,10 +117,6 @@ std::vector<Atom> parseXML(const std::string& xmlData) {
             std::string symbol = extractAttribute(atomBlock, "symbol");
             std::string coords = extractAttribute(atomBlock, "cartCoords");
             
-            std::cout << "DEBUG: Processing atom block (first 100 chars): " 
-                      << atomBlock.substr(0, 100) << "..." << std::endl;
-            std::cout << "DEBUG: Found symbol='" << symbol << "', coords='" << coords << "'" << std::endl;
-            
             if (!symbol.empty() && !coords.empty()) {
                 std::vector<std::string> coordTokens = split(coords, ' ');
                 if (coordTokens.size() >= 3) {
@@ -135,16 +127,10 @@ std::vector<Atom> parseXML(const std::string& xmlData) {
                         atom.y = std::stod(coordTokens[1]);
                         atom.z = std::stod(coordTokens[2]);
                         atoms.push_back(atom);
-                        std::cout << "SUCCESS: Added " << atom.symbol << " at (" 
-                                  << atom.x << ", " << atom.y << ", " << atom.z << ")" << std::endl;
                     } catch (const std::exception& e) {
-                        std::cout << "WARNING: Cannot parse coordinates: " << coords << std::endl;
+                        // Silently skip invalid coordinates
                     }
-                } else {
-                    std::cout << "WARNING: Expected 3 coordinates, got " << coordTokens.size() << std::endl;
                 }
-            } else {
-                std::cout << "WARNING: Missing symbol or coordinates" << std::endl;
             }
             
             pos = endPos;
@@ -179,7 +165,6 @@ std::string generateXYZ(const std::vector<Atom>& atoms) {
 
 bool copyTextToClipboard(const std::string& text) {
     if (!OpenClipboard(NULL)) {
-        std::cout << "ERROR: Cannot open clipboard" << std::endl;
         return false;
     }
     
@@ -187,14 +172,12 @@ bool copyTextToClipboard(const std::string& text) {
     
     HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, text.length() + 1);
     if (hMem == NULL) {
-        std::cout << "ERROR: Cannot allocate memory" << std::endl;
         CloseClipboard();
         return false;
     }
     
     void* pMem = GlobalLock(hMem);
     if (pMem == NULL) {
-        std::cout << "ERROR: Cannot lock memory" << std::endl;
         GlobalFree(hMem);
         CloseClipboard();
         return false;
@@ -204,7 +187,6 @@ bool copyTextToClipboard(const std::string& text) {
     GlobalUnlock(hMem);
     
     if (SetClipboardData(CF_TEXT, hMem) == NULL) {
-        std::cout << "ERROR: Cannot set clipboard data" << std::endl;
         GlobalFree(hMem);
         CloseClipboard();
         return false;
@@ -214,67 +196,25 @@ bool copyTextToClipboard(const std::string& text) {
     return true;
 }
 
-int main() {
-    std::cout << std::string(50, '=') << std::endl;
-    std::cout << "    Chem3D XML to XYZ Converter" << std::endl;
-    std::cout << std::string(50, '=') << std::endl;
-    std::cout << "Reading clipboard..." << std::endl;
-    
+// 使用 WinMain 入口点
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     std::string xmlData = getChem3DFromClipboard();
     
     if (xmlData.empty()) {
-        std::cout << "ERROR: No Chem3D data found" << std::endl;
-        std::cout << "Please copy a molecule from Chem3D first" << std::endl;
-        std::cout << "Press Enter to exit...";
-        std::cin.get();
         return 1;
     }
-    
-    std::cout << "SUCCESS: Found Chem3D XML data" << std::endl;
-    std::cout << "Data size: " << xmlData.length() << " characters" << std::endl;
     
     std::vector<Atom> atoms = parseXML(xmlData);
     
     if (atoms.empty()) {
-        std::cout << "ERROR: No atoms found in data" << std::endl;
-        std::cout << "Press Enter to exit...";
-        std::cin.get();
         return 1;
     }
     
-    std::cout << "SUCCESS: Parsed " << atoms.size() << " atoms" << std::endl;
-    
     std::string xyzText = generateXYZ(atoms);
     
-    if (copyTextToClipboard(xyzText)) {
-        std::cout << "SUCCESS: XYZ data copied to clipboard!" << std::endl;
-        
-        std::cout << "\nXYZ Clipboard Preview:" << std::endl;
-        std::cout << std::string(50, '-') << std::endl;
-        
-        std::cout << atoms.size() << std::endl;
-        std::cout << "Converted from Chem3D" << std::endl;
-        
-        for (size_t i = 0; i < std::min(atoms.size(), (size_t)10); ++i) {
-            const auto& atom = atoms[i];
-            std::cout << std::left << std::setw(2) << atom.symbol 
-                     << " " << std::right << std::setw(12) << std::fixed << std::setprecision(6) << atom.x
-                     << " " << std::right << std::setw(12) << std::fixed << std::setprecision(6) << atom.y
-                     << " " << std::right << std::setw(12) << std::fixed << std::setprecision(6) << atom.z
-                     << std::endl;
-        }
-        
-        if (atoms.size() > 10) {
-            std::cout << "... (" << (atoms.size() - 10) << " more atoms)" << std::endl;
-        }
-        
-        std::cout << std::string(50, '-') << std::endl;
-        std::cout << "\nYou can now paste the XYZ data anywhere!" << std::endl;
-    } else {
-        std::cout << "ERROR: Failed to copy to clipboard" << std::endl;
+    if (!copyTextToClipboard(xyzText)) {
+        return 1;
     }
     
-    std::cout << "\nPress Enter to exit...";
-    std::cin.get();
     return 0;
 }
