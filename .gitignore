@@ -4,4 +4,5 @@ build/*
 logs/*
 *.gjf
 *.xyz
+*.chg
 temp/
