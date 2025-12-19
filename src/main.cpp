@@ -14,6 +14,7 @@
 #include "converter.h"
 #include "menu.h"
 #include "version.h"
+#include "logfile_handler.h"
 
 // 解决Windows ERROR宏冲突
 #ifdef ERROR
@@ -609,6 +610,24 @@ bool processFileConversion(const std::string& filepath) {
         // 检查文件扩展名
         std::string ext = std::filesystem::path(filepath).extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+        
+        // 处理log文件
+        if (ext == ".log") {
+            LOG_INFO("Processing log file: " + filepath);
+            LogFileType logType = LogFileHandler::identifyLogType(filepath);
+            
+            if (LogFileHandler::openLogFile(filepath, logType)) {
+                std::string typeName = (logType == LogFileType::ORCA) ? "ORCA" : 
+                                      (logType == LogFileType::GAUSSIAN) ? "Gaussian" : "Other";
+                LOG_INFO("Successfully opened " + typeName + " log file: " + filepath);
+                showTrayNotification("XYZ Monitor", "成功打开" + typeName + " log文件: " + std::filesystem::path(filepath).filename().string(), NIIF_INFO);
+                return true;
+            } else {
+                LOG_ERROR("Failed to open log file: " + filepath);
+                showTrayNotification("XYZ Monitor", "无法打开log文件: " + filepath, NIIF_ERROR);
+                return false;
+            }
+        }
         
         if (ext != ".xyz" && ext != ".trj" && ext != ".chg") {
             LOG_ERROR("Unsupported file format: " + ext);

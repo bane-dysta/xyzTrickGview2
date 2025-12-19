@@ -18,11 +18,11 @@ struct Plugin {
 // 配置结构体
 struct Config {
     std::string hotkey = "CTRL+ALT+X";
-    std::string hotkeyReverse = "CTRL+ALT+G";  // 新增：反向转换热键
+    std::string hotkeyReverse = "CTRL+ALT+G";
     std::string gviewPath = "";
     std::string tempDir = "";
     std::string logFile = "logs/xyz_monitor.log";
-    std::string gaussianClipboardPath = "";  // 新增：Gaussian clipboard文件路径
+    std::string gaussianClipboardPath = "";
     int waitSeconds = 5;
     std::string logLevel = "INFO";
     bool logToConsole = true;
@@ -39,6 +39,11 @@ struct Config {
     
     // CHG格式支持
     bool tryParseChgFormat = false;  // 是否尝试以CHG格式解析剪切板文本
+    
+    // Log文件查看器配置
+    std::string orcaLogViewer = "notepad.exe";      // ORCA log文件查看器
+    std::string gaussianLogViewer = "gview.exe";     // Gaussian log文件查看器
+    std::string otherLogViewer = "notepad.exe";    // 其他log文件查看器
     
     // 插件系统
     std::vector<Plugin> plugins;  // 插件列表

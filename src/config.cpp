@@ -43,6 +43,10 @@ bool loadConfig(const std::string& configFile) {
             outFile << "xyz_columns=2,3,4\n";
             outFile << "# CHG Format Support (format: Element X Y Z Charge)\n";
             outFile << "try_parse_chg_format=false\n";
+            outFile << "# Log file viewers\n";
+            outFile << "orca_log_viewer=notepad.exe\n";
+            outFile << "gaussian_log_viewer=gview.exe\n";
+            outFile << "other_log_viewer=notepad.exe\n";
             outFile.close();
             std::cout << "Created default config file: " << configFile << std::endl;
         } else {
@@ -110,6 +114,12 @@ bool loadConfig(const std::string& configFile) {
                         }
                     } else if (key == "try_parse_chg_format") {
                         g_config.tryParseChgFormat = (value == "true" || value == "1");
+                    } else if (key == "orca_log_viewer") {
+                        g_config.orcaLogViewer = value;
+                    } else if (key == "gaussian_log_viewer") {
+                        g_config.gaussianLogViewer = value;
+                    } else if (key == "other_log_viewer") {
+                        g_config.otherLogViewer = value;
                     }
                 } else {
                     // 处理插件配置
@@ -191,6 +201,10 @@ bool saveConfig(const std::string& configFile) {
         file << "xyz_columns=" << g_config.xColumn << "," << g_config.yColumn << "," << g_config.zColumn << "\n";
         file << "# CHG Format Support (format: Element X Y Z Charge)\n";
         file << "try_parse_chg_format=" << (g_config.tryParseChgFormat ? "true" : "false") << "\n";
+        file << "# Log file viewers\n";
+        file << "orca_log_viewer=" << g_config.orcaLogViewer << "\n";
+        file << "gaussian_log_viewer=" << g_config.gaussianLogViewer << "\n";
+        file << "other_log_viewer=" << g_config.otherLogViewer << "\n";
         
         // 保存插件配置
         for (const auto& plugin : g_config.plugins) {

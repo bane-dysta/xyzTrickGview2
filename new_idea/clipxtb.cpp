@@ -1,5 +1,4 @@
-// Compilation command (using MinGW):
-// x86_64-w64-mingw32-g++ clipxtb.cpp -o clipxtb.exe -luser32 -lkernel32 -lcomctl32 -lole32 -lgdi32 -lshell32 -static-libgcc -static-libstdc++ -std=c++17
+// x86_64-w64-mingw32-g++ clipxtb.cpp -o clipxtb.exe -luser32 -lkernel32 -lcomctl32 -lole32 -lgdi32 -lshell32 -static-libgcc -static-libstdc++ -std=c++17 -s -O2
 
 #include <windows.h>
 #include <shellapi.h>

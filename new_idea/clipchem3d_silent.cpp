@@ -1,4 +1,3 @@
-// 编译命令：
 // x86_64-w64-mingw32-g++ -o clip_chem3d.exe clipchem3d_silent.cpp -mwindows -Wl,--subsystem,windows:6.0 -Wl,--entry,WinMainCRTStartup -static -static-libgcc -static-libstdc++ -O2 -s
 
 #include <windows.h>
