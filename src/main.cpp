@@ -611,9 +611,9 @@ bool processFileConversion(const std::string& filepath) {
         std::string ext = std::filesystem::path(filepath).extension().string();
         std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         
-        // 处理log文件
-        if (ext == ".log") {
-            LOG_INFO("Processing log file: " + filepath);
+        // 处理log文件（包括 .log 和 .out）
+        if (ext == ".log" || ext == ".out") {
+            LOG_INFO("Processing log/out file: " + filepath);
             LogFileType logType = LogFileHandler::identifyLogType(filepath);
             
             if (LogFileHandler::openLogFile(filepath, logType)) {
