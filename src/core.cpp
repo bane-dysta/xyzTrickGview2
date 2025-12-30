@@ -22,6 +22,7 @@ std::map<std::string, int> atomicNumbers = {
 
 // 原子序数到元素符号的映射
 std::map<int, std::string> atomicNumberToSymbol = {
+    {-2, "Tv"},  // 晶胞向量（Translation Vector）
     {1, "H"}, {2, "He"}, {3, "Li"}, {4, "Be"}, {5, "B"}, {6, "C"}, {7, "N"}, {8, "O"},
     {9, "F"}, {10, "Ne"}, {11, "Na"}, {12, "Mg"}, {13, "Al"}, {14, "Si"}, {15, "P"}, {16, "S"},
     {17, "Cl"}, {18, "Ar"}, {19, "K"}, {20, "Ca"}, {21, "Sc"}, {22, "Ti"}, {23, "V"}, {24, "Cr"},
@@ -74,14 +75,19 @@ std::vector<std::string> splitWhitespace(const std::string& str) {
 int getAtomicNumber(const std::string& symbol) {
     std::string processed = symbol;
     processed = trim(processed);
-    
+
+    // 特殊处理Tv元素（晶胞向量）
+    if (processed == "Tv" || processed == "tv" || processed == "TV") {
+        return -2;
+    }
+
     if (!processed.empty()) {
         processed[0] = std::toupper(processed[0]);
         for (size_t i = 1; i < processed.length(); ++i) {
             processed[i] = std::tolower(processed[i]);
         }
     }
-    
+
     auto it = atomicNumbers.find(processed);
     return (it != atomicNumbers.end()) ? it->second : 0;
 }
