@@ -322,7 +322,9 @@ std::string createTempFile(const std::string& content) {
         const auto now = std::chrono::system_clock::now();
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
         const DWORD tid = GetCurrentThreadId();
-        const ULONGLONG tick = GetTickCount64();
+        // Some MinGW toolchains don't expose GetTickCount64() unless _WIN32_WINNT is set.
+        // GetTickCount() is fine for uniqueness here (we already include ms + thread id).
+        const ULONGLONG tick = static_cast<ULONGLONG>(GetTickCount());
 
         std::ostringstream filename;
         filename << "molecule_" << ms << "_" << tick << "_" << tid << ".log";
@@ -588,9 +590,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                     default:
                         // 处理插件菜单项 (ID从2000开始)
                         if (wParam >= 2000) {
-                            int pluginIndex = wParam - 2000;
-                            if (pluginIndex < g_config.plugins.size()) {
-                                executePlugin(g_config.plugins[pluginIndex].name);
+                            const int pluginIndex = static_cast<int>(wParam) - 2000;
+                            if (pluginIndex >= 0 && static_cast<size_t>(pluginIndex) < g_config.plugins.size()) {
+                                executePlugin(g_config.plugins[static_cast<size_t>(pluginIndex)].name);
                             }
                         }
                         break;
