@@ -5,6 +5,8 @@
 #include <sstream>
 #include <string>
 #include <ctime>
+#include <vector>
+#include <chrono>
 #include <filesystem>
 
 // 引入自定义模块
@@ -307,27 +309,37 @@ bool writeToClipboard(const std::string& text) {
 // 创建临时文件
 std::string createTempFile(const std::string& content) {
     try {
+        // 使用更稳妥的唯一文件名，避免同一秒内多次触发导致覆盖
+        std::filesystem::path dir;
         if (!g_config.tempDir.empty()) {
-            std::filesystem::create_directories(g_config.tempDir);
+            dir = std::filesystem::path(g_config.tempDir);
+        } else {
+            dir = std::filesystem::temp_directory_path();
         }
-        
-        std::time_t t = std::time(nullptr);
+
+        std::filesystem::create_directories(dir);
+
+        const auto now = std::chrono::system_clock::now();
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        const DWORD tid = GetCurrentThreadId();
+        const ULONGLONG tick = GetTickCount64();
+
         std::ostringstream filename;
-        filename << "molecule_" << t << ".log";
+        filename << "molecule_" << ms << "_" << tick << "_" << tid << ".log";
+
+        std::filesystem::path filepath = dir / filename.str();
         
-        std::string filepath = g_config.tempDir.empty() ? filename.str() : g_config.tempDir + "/" + filename.str();
-        
-        std::ofstream file(filepath);
+        std::ofstream file(filepath.string());
         if (!file.is_open()) {
-            LOG_ERROR("Failed to create temp file: " + filepath);
+            LOG_ERROR("Failed to create temp file: " + filepath.string());
             return "";
         }
         
         file << content;
         file.close();
         
-        LOG_INFO("Created temporary file: " + filepath);
-        return filepath;
+        LOG_INFO("Created temporary file: " + filepath.string());
+        return filepath.string();
     } catch (const std::exception& e) {
         LOG_ERROR("Exception creating temp file: " + std::string(e.what()));
         return "";
@@ -351,7 +363,11 @@ bool openWithGView(const std::string& filepath) {
         si.cb = sizeof(si);
         ZeroMemory(&pi, sizeof(pi));
         
-        if (!CreateProcessA(NULL, const_cast<char*>(command.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        // CreateProcess 可能会修改命令行缓冲区，因此必须传入可写 buffer
+        std::vector<char> cmdBuf(command.begin(), command.end());
+        cmdBuf.push_back('\0');
+
+        if (!CreateProcessA(NULL, cmdBuf.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
             DWORD error = GetLastError();
             LOG_ERROR("Failed to launch GView (Error: " + std::to_string(error) + ")");
             return false;

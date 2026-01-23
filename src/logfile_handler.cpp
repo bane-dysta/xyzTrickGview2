@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <vector>
 #include <windows.h>
 
 // 读取文件的前N行
@@ -115,7 +116,11 @@ bool LogFileHandler::openLogFile(const std::string& filepath, LogFileType type) 
         si.cb = sizeof(si);
         ZeroMemory(&pi, sizeof(pi));
         
-        if (!CreateProcessA(NULL, const_cast<char*>(command.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        // CreateProcess 可能会修改命令行缓冲区，因此必须传入可写 buffer
+        std::vector<char> cmdBuf(command.begin(), command.end());
+        cmdBuf.push_back('\0');
+
+        if (!CreateProcessA(NULL, cmdBuf.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
             DWORD error = GetLastError();
             LOG_ERROR("Failed to launch " + typeName + " log viewer (Error: " + std::to_string(error) + ")");
             return false;

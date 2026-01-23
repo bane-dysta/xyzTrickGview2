@@ -568,6 +568,31 @@ void MenuWindow::UpdateControls() {
 
 bool MenuWindow::ValidateInputs() {
     char buffer[256];
+
+    auto existsOrResolvableExe = [](const std::string& path) -> bool {
+        if (path.empty()) return true;
+
+        // 1) 直接路径（绝对/相对）
+        DWORD attr = GetFileAttributesA(path.c_str());
+        if (attr != INVALID_FILE_ATTRIBUTES) {
+            return true;
+        }
+
+        // 2) 相对路径：以可执行文件目录为基准再试一次
+        std::string exeDir = getExecutableDirectory();
+        if (!exeDir.empty()) {
+            std::string joined = exeDir + "\\" + path;
+            attr = GetFileAttributesA(joined.c_str());
+            if (attr != INVALID_FILE_ATTRIBUTES) {
+                return true;
+            }
+        }
+
+        // 3) 仅文件名：交给系统在 PATH 中解析
+        char resolved[MAX_PATH] = {0};
+        DWORD len = SearchPathA(NULL, path.c_str(), NULL, MAX_PATH, resolved, NULL);
+        return (len > 0 && len < MAX_PATH);
+    };
     
     // 验证热键
     GetWindowTextA(m_hotkeyEdit, buffer, sizeof(buffer));
@@ -588,9 +613,7 @@ bool MenuWindow::ValidateInputs() {
     GetWindowTextA(m_gviewPathEdit, buffer, sizeof(buffer));
     std::string gviewPath = buffer;
     if (!gviewPath.empty()) {
-        // 检查文件是否存在
-        DWORD attributes = GetFileAttributesA(gviewPath.c_str());
-        if (attributes == INVALID_FILE_ATTRIBUTES) {
+        if (!existsOrResolvableExe(gviewPath)) {
             MessageBoxA(m_hwnd, "GView executable path does not exist!", "Validation Error", MB_OK | MB_ICONERROR);
             return false;
         }
@@ -681,8 +704,11 @@ void MenuWindow::ApplySettings() {
     g_config.zColumn = m_zColumn;
     g_config.tryParseChgFormat = m_tryParseChgFormat;
     
-    // 保存配置到文件
-    if (saveConfig("config.ini")) {
+    // 保存配置到文件（与 main.cpp 一致：始终写入可执行文件目录下的 config.ini）
+    std::string exeDir = getExecutableDirectory();
+    std::string configPath = exeDir.empty() ? "config.ini" : (exeDir + "\\config.ini");
+
+    if (saveConfig(configPath)) {
         LOG_INFO("Configuration saved successfully");
         
         // 重新注册热键

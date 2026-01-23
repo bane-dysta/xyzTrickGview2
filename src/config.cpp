@@ -5,6 +5,7 @@
 #include <iostream>
 #include <algorithm>
 #include <filesystem>
+#include <vector>
 
 // 声明外部函数
 extern void showTrayNotification(const std::string& title, const std::string& message, DWORD iconType = NIIF_INFO);
@@ -12,48 +13,85 @@ extern void showTrayNotification(const std::string& title, const std::string& me
 // 全局配置实例
 Config g_config;
 
+namespace {
+
+// 根据可执行文件目录，为运行时补齐更合理的默认值（与生成的默认 config.ini 一致）
+void applyRuntimeDefaults(Config& cfg) {
+    std::string exeDir = getExecutableDirectory();
+    if (cfg.gviewPath.empty()) cfg.gviewPath = "gview.exe";
+    if (cfg.gaussianClipboardPath.empty()) cfg.gaussianClipboardPath = "Clipboard.frg";
+
+    if (cfg.tempDir.empty()) {
+        cfg.tempDir = exeDir.empty() ? "temp" : (exeDir + "\\temp");
+    }
+
+    if (cfg.logFile.empty() || cfg.logFile == "logs/xyz_monitor.log") {
+        cfg.logFile = exeDir.empty() ? "logs\\xyz_monitor.log" : (exeDir + "\\logs\\xyz_monitor.log");
+    }
+}
+
+bool writeDefaultConfigFile(const std::string& configFile) {
+    std::ofstream outFile(configFile);
+    if (!outFile.is_open()) {
+        return false;
+    }
+
+    std::string exeDir = getExecutableDirectory();
+    std::string tempDirPath = exeDir.empty() ? "temp" : exeDir + "\\temp";
+    std::string logFilePath = exeDir.empty() ? "logs\\xyz_monitor.log" : exeDir + "\\logs\\xyz_monitor.log";
+
+    outFile << "[main]\n";
+    outFile << "hotkey=CTRL+ALT+X\n";
+    outFile << "hotkey_reverse=CTRL+ALT+G\n";
+    outFile << "gview_path=gview.exe\n";
+    outFile << "gaussian_clipboard_path=Clipboard.frg\n";
+    outFile << "temp_dir=" << tempDirPath << "\n";
+    outFile << "log_file=" << logFilePath << "\n";
+    outFile << "log_level=INFO\n";
+    outFile << "log_to_console=true\n";
+    outFile << "log_to_file=true\n";
+    outFile << "wait_seconds=5\n";
+    outFile << "# Memory limit in MB for processing (default: 500MB)\n";
+    outFile << "max_memory_mb=500\n";
+    outFile << "# Optional: set explicit character limit (0 = auto calculate from memory)\n";
+    outFile << "max_clipboard_chars=0\n";
+    outFile << "# XYZ Converter Column Definitions (1-based indexing)\n";
+    outFile << "element_column=1\n";
+    outFile << "xyz_columns=2,3,4\n";
+    outFile << "# CHG Format Support (format: Element X Y Z Charge)\n";
+    outFile << "try_parse_chg_format=false\n";
+    outFile << "# Log file viewers\n";
+    outFile << "orca_log_viewer=notepad.exe\n";
+    outFile << "gaussian_log_viewer=gview.exe\n";
+    outFile << "other_log_viewer=notepad.exe\n";
+    outFile.close();
+    return true;
+}
+
+} // namespace
+
 // 读取配置文件
 bool loadConfig(const std::string& configFile) {
     std::ifstream file(configFile);
     if (!file.is_open()) {
-        // 创建默认配置文件
-        std::ofstream outFile(configFile);
-        if (outFile.is_open()) {
-            std::string exeDir = getExecutableDirectory();
-            std::string tempDirPath = exeDir.empty() ? "temp" : exeDir + "\\temp";
-            std::string logFilePath = exeDir.empty() ? "logs\\xyz_monitor.log" : exeDir + "\\logs\\xyz_monitor.log";
-            
-            outFile << "[main]\n";
-            outFile << "hotkey=CTRL+ALT+X\n";
-            outFile << "hotkey_reverse=CTRL+ALT+G\n";
-            outFile << "gview_path=gview.exe\n";
-            outFile << "gaussian_clipboard_path=Clipboard.frg\n";
-            outFile << "temp_dir=" << tempDirPath << "\n";
-            outFile << "log_file=" << logFilePath << "\n";
-            outFile << "log_level=INFO\n";
-            outFile << "log_to_console=true\n";
-            outFile << "log_to_file=true\n";
-            outFile << "wait_seconds=5\n";
-            outFile << "# Memory limit in MB for processing (default: 500MB)\n";
-            outFile << "max_memory_mb=500\n";
-            outFile << "# Optional: set explicit character limit (0 = auto calculate from memory)\n";
-            outFile << "max_clipboard_chars=0\n";
-            outFile << "# XYZ Converter Column Definitions (1-based indexing)\n";
-            outFile << "element_column=1\n";
-            outFile << "xyz_columns=2,3,4\n";
-            outFile << "# CHG Format Support (format: Element X Y Z Charge)\n";
-            outFile << "try_parse_chg_format=false\n";
-            outFile << "# Log file viewers\n";
-            outFile << "orca_log_viewer=notepad.exe\n";
-            outFile << "gaussian_log_viewer=gview.exe\n";
-            outFile << "other_log_viewer=notepad.exe\n";
-            outFile.close();
+        // 第一次启动：创建默认配置文件，并继续加载（避免“第一次不可用”）
+        if (writeDefaultConfigFile(configFile)) {
             std::cout << "Created default config file: " << configFile << std::endl;
         } else {
             std::cerr << "Failed to create default config file: " << configFile << std::endl;
+            return false;
         }
-        return false;
+
+        file.open(configFile);
+        if (!file.is_open()) {
+            return false;
+        }
     }
+
+    // 每次加载都重置配置，避免 Reload 时插件/热键重复叠加
+    g_config = Config{};
+    g_config.plugins.clear();
+    applyRuntimeDefaults(g_config);
     
     std::string line;
     std::string currentSection = "main";
@@ -163,10 +201,16 @@ bool loadConfig(const std::string& configFile) {
         }
     }
     file.close();
+
+    // 如果用户没有在配置里填某些值，则保持（或回退到）运行时默认值
+    applyRuntimeDefaults(g_config);
     
     if (g_config.maxClipboardChars == 0) {
         g_config.maxClipboardChars = calculateMaxChars(g_config.maxMemoryMB);
     }
+
+    // 如果配置未显式提供某些字段，则补齐默认值
+    applyRuntimeDefaults(g_config);
     
     return true;
 }
@@ -408,7 +452,11 @@ bool executePlugin(const std::string& name) {
                 si.cb = sizeof(si);
                 ZeroMemory(&pi, sizeof(pi));
                 
-                if (CreateProcessA(NULL, const_cast<char*>(plugin.cmd.c_str()), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+                // CreateProcess 可能会修改命令行缓冲区，因此必须传入可写 buffer
+                std::vector<char> cmdBuf(plugin.cmd.begin(), plugin.cmd.end());
+                cmdBuf.push_back('\0');
+
+                if (CreateProcessA(NULL, cmdBuf.data(), NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
                     CloseHandle(pi.hProcess);
                     CloseHandle(pi.hThread);
                     LOG_INFO("Plugin executed successfully: " + name);

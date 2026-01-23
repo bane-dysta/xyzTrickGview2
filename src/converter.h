@@ -29,5 +29,5 @@ std::string createXYZString(const std::vector<Atom>& atoms);
 std::string writeGaussianLogHeader();
 // 修改：增加previousFrame参数，用于在当前帧缺少收敛信息时使用前一帧的数据
 std::string writeGaussianLogGeometry(const Frame& frame, int frameNumber, const Frame* previousFrame = nullptr);
-std::string writeGaussianLogFooter();
+std::string writeGaussianLogFooter(const std::vector<Frame>& frames);
 std::string convertToGaussianLog(const std::vector<Frame>& frames);

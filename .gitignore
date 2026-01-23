@@ -7,3 +7,4 @@ logs/*
 *.chg
 temp/
 ofg
+*.tar.gz
