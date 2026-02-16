@@ -312,7 +312,8 @@ std::string createTempFile(const std::string& content) {
         // 使用更稳妥的唯一文件名，避免同一秒内多次触发导致覆盖
         std::filesystem::path dir;
         if (!g_config.tempDir.empty()) {
-            dir = std::filesystem::path(g_config.tempDir);
+            // Support env vars and paths relative to config.ini
+            dir = std::filesystem::path(resolveConfigPathForFile(g_config.tempDir));
         } else {
             dir = std::filesystem::temp_directory_path();
         }
@@ -355,8 +356,10 @@ bool openWithGView(const std::string& filepath) {
             LOG_ERROR("GView path not configured!");
             return false;
         }
-        
-        std::string command = "\"" + g_config.gviewPath + "\" \"" + filepath + "\"";
+
+        // Support env vars and relative paths (relative to config.ini)
+        std::string gviewExe = resolveConfigPathForExecutable(g_config.gviewPath);
+        std::string command = "\"" + gviewExe + "\" \"" + filepath + "\"";
         LOG_DEBUG("Executing command: " + command);
         
         STARTUPINFOA si;
@@ -486,8 +489,8 @@ void processGViewClipboardToXYZ() {
             return;
         }
         
-        // 解析Gaussian clipboard文件
-        std::vector<Atom> atoms = parseGaussianClipboard(g_config.gaussianClipboardPath);
+        // 解析Gaussian clipboard文件（支持 %VAR% 和相对路径：相对于 config.ini）
+        std::vector<Atom> atoms = parseGaussianClipboard(resolveConfigPathForFile(g_config.gaussianClipboardPath));
         
         if (atoms.empty()) {
             LOG_ERROR("No atoms found in Gaussian clipboard file");
@@ -767,7 +770,7 @@ int main(int argc, char* argv[]) {
             loadConfig(configPath);
             
             LogLevel logLevel = stringToLogLevel(g_config.logLevel);
-            if (!g_logger.initialize(g_config.logFile, logLevel)) {
+            if (!g_logger.initialize(resolveConfigPathForFile(g_config.logFile), logLevel)) {
                 std::cerr << "Warning: Failed to initialize log file, logging to console only." << std::endl;
             }
             
@@ -785,7 +788,7 @@ int main(int argc, char* argv[]) {
         loadConfig(configPath);
         
         LogLevel logLevel = stringToLogLevel(g_config.logLevel);
-        if (!g_logger.initialize(g_config.logFile, logLevel)) {
+        if (!g_logger.initialize(resolveConfigPathForFile(g_config.logFile), logLevel)) {
             std::cerr << "Warning: Failed to initialize log file, logging to console only." << std::endl;
         }
         

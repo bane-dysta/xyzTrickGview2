@@ -18,6 +18,7 @@ private:
     HWND m_gaussianClipboardEdit;
     HWND m_browseGViewButton;
     HWND m_browseGaussianButton;
+    HWND m_openLogButton;
     
     // General tab labels
     HWND m_hotkeyLabel;
@@ -109,6 +110,7 @@ private:
     // 对话框处理
     void OnBrowseGViewPath();
     void OnBrowseGaussianClipboard();
+    void OnOpenLogFile();
     void OnOpenLink(const std::string& url);
     
     // 插件管理函数

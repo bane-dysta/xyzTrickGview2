@@ -105,9 +105,12 @@ bool LogFileHandler::openLogFile(const std::string& filepath, LogFileType type) 
             LOG_ERROR("Viewer path is empty for " + typeName + " log files");
             return false;
         }
+
+        // Support %VAR% and paths relative to config.ini
+        std::string viewerExe = resolveConfigPathForExecutable(viewerPath);
         
         // 构建命令：viewerPath "filepath"
-        std::string command = "\"" + viewerPath + "\" \"" + filepath + "\"";
+        std::string command = "\"" + viewerExe + "\" \"" + filepath + "\"";
         LOG_DEBUG("Executing command: " + command);
         
         STARTUPINFOA si;

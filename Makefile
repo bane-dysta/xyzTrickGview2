@@ -1,4 +1,4 @@
-# Makefile for XYZ Monitor (Modular Version) - Adapted for src/ structure
+# Makefile for XYZ Monitor - Adapted for src/ structure
 # Supports both MinGW and MSVC compilers
 
 # Cross-compiler for Windows (MinGW-w64)
@@ -6,7 +6,7 @@ CXX = x86_64-w64-mingw32-g++
 RC = x86_64-w64-mingw32-windres
 
 # Target executable name
-TARGET = xyz_monitor.exe
+TARGET = xyzTrick.exe
 
 # Source files (now in src directory)
 SOURCES = src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp src/menu.cpp src/logfile_handler.cpp

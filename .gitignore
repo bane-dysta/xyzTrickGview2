@@ -8,3 +8,5 @@ logs/*
 temp/
 ofg
 *.tar.gz
+*.zip
+*.tgz

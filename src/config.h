@@ -59,6 +59,30 @@ bool reloadConfiguration();
 bool parseHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& vk);
 std::string getExecutableDirectory();
 
+// --------------------
+// Config path utilities
+// --------------------
+// Last loaded config file path (absolute when possible)
+extern std::string g_configFilePath;
+
+// Directory that contains config.ini
+std::string getConfigDirectory();
+
+// Expand Windows-style %VAR% environment variables (keeps unknown variables unchanged)
+std::string expandEnvironmentVariables(const std::string& input);
+
+// Resolve a file/dir path from config:
+// 1) expands %VAR%
+// 2) if relative, resolves relative to config.ini directory
+std::string resolveConfigPathForFile(const std::string& path);
+
+// Resolve an executable/viewer path from config:
+// 1) expands %VAR%
+// 2) if relative, first tries "<config_dir>\\<path>"; if it exists, returns absolute
+// 3) if it has a parent path (e.g. "bin\\tool.exe"), resolves relative to config.ini directory
+// 4) otherwise returns as-is (so Windows can resolve via PATH)
+std::string resolveConfigPathForExecutable(const std::string& path);
+
 // 插件相关函数
 bool loadPlugins();
 bool savePlugins();

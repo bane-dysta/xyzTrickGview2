@@ -13,7 +13,13 @@ extern void showTrayNotification(const std::string& title, const std::string& me
 // 全局配置实例
 Config g_config;
 
+// 最后一次加载的配置文件路径（尽可能为绝对路径）
+std::string g_configFilePath;
+
 namespace {
+
+// 配置文件所在目录
+std::string g_configDir;
 
 // 根据可执行文件目录，为运行时补齐更合理的默认值（与生成的默认 config.ini 一致）
 void applyRuntimeDefaults(Config& cfg) {
@@ -25,7 +31,8 @@ void applyRuntimeDefaults(Config& cfg) {
         cfg.tempDir = exeDir.empty() ? "temp" : (exeDir + "\\temp");
     }
 
-    if (cfg.logFile.empty() || cfg.logFile == "logs/xyz_monitor.log") {
+    // NOTE: do not override non-empty logFile so users can keep relative paths / variables.
+    if (cfg.logFile.empty()) {
         cfg.logFile = exeDir.empty() ? "logs\\xyz_monitor.log" : (exeDir + "\\logs\\xyz_monitor.log");
     }
 }
@@ -70,19 +77,177 @@ bool writeDefaultConfigFile(const std::string& configFile) {
 
 } // namespace
 
+// --------------------
+// Config path utilities
+// --------------------
+
+std::string getConfigDirectory() {
+    return g_configDir;
+}
+
+// Expand Windows-style %VAR% env vars. Keeps unknown vars as-is.
+std::string expandEnvironmentVariables(const std::string& input) {
+    if (input.empty()) return input;
+
+    std::string out;
+    out.reserve(input.size());
+
+    for (size_t i = 0; i < input.size();) {
+        char c = input[i];
+        if (c != '%') {
+            out.push_back(c);
+            ++i;
+            continue;
+        }
+
+        // Handle escaped %% -> %
+        if (i + 1 < input.size() && input[i + 1] == '%') {
+            out.push_back('%');
+            i += 2;
+            continue;
+        }
+
+        size_t end = input.find('%', i + 1);
+        if (end == std::string::npos) {
+            // unmatched %, keep it
+            out.push_back('%');
+            ++i;
+            continue;
+        }
+
+        std::string var = input.substr(i + 1, end - (i + 1));
+        if (var.empty()) {
+            // "%%" already handled above; for "%""%" just keep
+            out.append(input.substr(i, end - i + 1));
+            i = end + 1;
+            continue;
+        }
+
+        // Query environment variable
+        DWORD required = GetEnvironmentVariableA(var.c_str(), NULL, 0);
+        if (required == 0) {
+            // not found, keep original %VAR%
+            out.append(input.substr(i, end - i + 1));
+        } else {
+            std::string value;
+            value.resize(required);
+            DWORD written = GetEnvironmentVariableA(var.c_str(), value.data(), required);
+            if (written > 0) {
+                // GetEnvironmentVariableA writes without the terminating null when using std::string buffer.
+                value.resize(written);
+                out.append(value);
+            } else {
+                // unexpected; keep original
+                out.append(input.substr(i, end - i + 1));
+            }
+        }
+
+        i = end + 1;
+    }
+
+    return out;
+}
+
+static std::string normalizePathString(const std::filesystem::path& p) {
+    try {
+        return p.lexically_normal().string();
+    } catch (...) {
+        return p.string();
+    }
+}
+
+std::string resolveConfigPathForFile(const std::string& path) {
+    std::string expanded = expandEnvironmentVariables(path);
+    if (expanded.empty()) return expanded;
+
+    try {
+        std::filesystem::path p(expanded);
+        if (p.is_absolute()) {
+            return normalizePathString(p);
+        }
+
+        if (!g_configDir.empty()) {
+            std::filesystem::path joined = std::filesystem::path(g_configDir) / p;
+            return normalizePathString(joined);
+        }
+
+        return normalizePathString(p);
+    } catch (...) {
+        return expanded;
+    }
+}
+
+std::string resolveConfigPathForExecutable(const std::string& path) {
+    std::string expanded = expandEnvironmentVariables(path);
+    if (expanded.empty()) return expanded;
+
+    try {
+        std::filesystem::path p(expanded);
+        if (p.is_absolute()) {
+            return normalizePathString(p);
+        }
+
+        // If we know config dir, try resolving relative to it first.
+        if (!g_configDir.empty()) {
+            std::filesystem::path base(g_configDir);
+            std::filesystem::path candidate = base / p;
+
+            // 1) If candidate exists (e.g. gview.exe shipped next to config.ini), use it.
+            std::error_code ec;
+            if (std::filesystem::exists(candidate, ec)) {
+                return normalizePathString(candidate);
+            }
+
+            // 2) If the string looks like a relative path with directories, resolve to config dir.
+            if (p.has_parent_path()) {
+                return normalizePathString(candidate);
+            }
+
+            // 3) If user explicitly wrote a relative prefix like .\tool.exe, resolve it.
+            if (!expanded.empty() && expanded[0] == '.') {
+                return normalizePathString(candidate);
+            }
+        }
+
+        // Otherwise keep as-is so Windows can resolve via PATH.
+        return expanded;
+    } catch (...) {
+        return expanded;
+    }
+}
+
 // 读取配置文件
 bool loadConfig(const std::string& configFile) {
-    std::ifstream file(configFile);
+    // Record config.ini location so that relative paths can be resolved against it.
+    try {
+        std::filesystem::path cfgPath = std::filesystem::absolute(std::filesystem::path(configFile));
+        g_configFilePath = cfgPath.string();
+        g_configDir = cfgPath.parent_path().string();
+    } catch (...) {
+        g_configFilePath = configFile;
+        try {
+            g_configDir = std::filesystem::path(configFile).parent_path().string();
+        } catch (...) {
+            g_configDir.clear();
+        }
+    }
+    if (g_configDir.empty()) {
+        // Fallback: use current directory
+        g_configDir = std::filesystem::current_path().string();
+    }
+
+    std::ifstream file(g_configFilePath.empty() ? configFile : g_configFilePath);
     if (!file.is_open()) {
         // 第一次启动：创建默认配置文件，并继续加载（避免“第一次不可用”）
-        if (writeDefaultConfigFile(configFile)) {
-            std::cout << "Created default config file: " << configFile << std::endl;
+        const std::string& cfgToCreate = g_configFilePath.empty() ? configFile : g_configFilePath;
+        if (writeDefaultConfigFile(cfgToCreate)) {
+            std::cout << "Created default config file: " << cfgToCreate << std::endl;
         } else {
-            std::cerr << "Failed to create default config file: " << configFile << std::endl;
+            std::cerr << "Failed to create default config file: " << cfgToCreate << std::endl;
             return false;
         }
 
-        file.open(configFile);
+        file.open(cfgToCreate);
         if (!file.is_open()) {
             return false;
         }

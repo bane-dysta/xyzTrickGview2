@@ -6,6 +6,8 @@
 #include <commdlg.h>
 #include <commctrl.h>
 #include <sstream>
+#include <filesystem>
+#include <fstream>
 
 // 全局菜单窗口实例
 MenuWindow* g_menuWindow = nullptr;
@@ -28,6 +30,7 @@ MenuWindow* g_menuWindow = nullptr;
 #define ID_Y_COLUMN_EDIT 1016
 #define ID_Z_COLUMN_EDIT 1017
 #define ID_CHG_FORMAT_CHECKBOX 1018
+#define ID_OPEN_LOG_BUTTON 1019
 
 // 插件管理控件ID
 #define ID_PLUGIN_LIST 1020
@@ -46,7 +49,7 @@ MenuWindow* g_menuWindow = nullptr;
 
 MenuWindow::MenuWindow(HWND parent) : m_hwnd(nullptr), m_hwndParent(parent), m_tabControl(nullptr),
     m_hotkeyEdit(nullptr), m_hotkeyReverseEdit(nullptr), m_gviewPathEdit(nullptr), m_gaussianClipboardEdit(nullptr),
-    m_browseGViewButton(nullptr), m_browseGaussianButton(nullptr), m_hotkeyLabel(nullptr), m_hotkeyReverseLabel(nullptr),
+    m_browseGViewButton(nullptr), m_browseGaussianButton(nullptr), m_openLogButton(nullptr), m_hotkeyLabel(nullptr), m_hotkeyReverseLabel(nullptr),
     m_gviewPathLabel(nullptr), m_gaussianClipboardLabel(nullptr), m_githubLink(nullptr), m_forumLink(nullptr),
     m_titleLabel(nullptr), m_authorLabel(nullptr), m_descriptionLabel(nullptr), m_linksLabel(nullptr),
     m_elementColumnEdit(nullptr), m_xColumnEdit(nullptr), m_yColumnEdit(nullptr), m_zColumnEdit(nullptr),
@@ -240,6 +243,10 @@ void MenuWindow::OnCommand(WPARAM wParam, LPARAM /*lParam*/) {
         case ID_BROWSE_GAUSSIAN:
             OnBrowseGaussianClipboard();
             break;
+
+        case ID_OPEN_LOG_BUTTON:
+            OnOpenLogFile();
+            break;
             
         case ID_GITHUB_LINK:
             OnOpenLink(FEEDBACK_GITHUB);
@@ -362,6 +369,12 @@ void MenuWindow::CreateGeneralTab() {
                                            340, 255, 80, 25, m_hwnd, (HMENU)ID_BROWSE_GAUSSIAN,
                                            GetModuleHandle(NULL), NULL);
     if (m_font) SendMessage(m_browseGaussianButton, WM_SETFONT, (WPARAM)m_font, TRUE);
+
+    // Open log file button
+    m_openLogButton = CreateWindowA("BUTTON", "Open Log File", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+                                   30, 295, 120, 25, m_hwnd, (HMENU)ID_OPEN_LOG_BUTTON,
+                                   GetModuleHandle(NULL), NULL);
+    if (m_font) SendMessage(m_openLogButton, WM_SETFONT, (WPARAM)m_font, TRUE);
 }
 
 void MenuWindow::CreateControlTab() {
@@ -480,6 +493,7 @@ void MenuWindow::ShowTab(int tabIndex) {
             ShowWindow(m_gaussianClipboardEdit, SW_SHOW);
             ShowWindow(m_browseGViewButton, SW_SHOW);
             ShowWindow(m_browseGaussianButton, SW_SHOW);
+            ShowWindow(m_openLogButton, SW_SHOW);
             break;
             
         case TAB_CONTROL:
@@ -572,25 +586,31 @@ bool MenuWindow::ValidateInputs() {
     auto existsOrResolvableExe = [](const std::string& path) -> bool {
         if (path.empty()) return true;
 
-        // 1) 直接路径（绝对/相对）
-        DWORD attr = GetFileAttributesA(path.c_str());
+        // Expand %VAR% and resolve relative path against config.ini
+        std::string expanded = expandEnvironmentVariables(path);
+        std::string resolved = resolveConfigPathForExecutable(path);
+
+        // 1) 直接路径（绝对/相对(已按config.ini补齐)）
+        DWORD attr = GetFileAttributesA(resolved.c_str());
         if (attr != INVALID_FILE_ATTRIBUTES) {
             return true;
         }
 
-        // 2) 相对路径：以可执行文件目录为基准再试一次
-        std::string exeDir = getExecutableDirectory();
-        if (!exeDir.empty()) {
-            std::string joined = exeDir + "\\" + path;
-            attr = GetFileAttributesA(joined.c_str());
-            if (attr != INVALID_FILE_ATTRIBUTES) {
-                return true;
+        // 2) 若用户提供了带目录的路径（或相对前缀），则认为必须存在
+        try {
+            std::filesystem::path p(expanded);
+            bool hasDir = p.is_absolute() || p.has_parent_path() || (!expanded.empty() && expanded[0] == '.') ||
+                          (expanded.find('\\') != std::string::npos) || (expanded.find('/') != std::string::npos);
+            if (hasDir) {
+                return false;
             }
+        } catch (...) {
+            // fall through
         }
 
         // 3) 仅文件名：交给系统在 PATH 中解析
-        char resolved[MAX_PATH] = {0};
-        DWORD len = SearchPathA(NULL, path.c_str(), NULL, MAX_PATH, resolved, NULL);
+        char resolvedPath[MAX_PATH] = {0};
+        DWORD len = SearchPathA(NULL, expanded.c_str(), NULL, MAX_PATH, resolvedPath, NULL);
         return (len > 0 && len < MAX_PATH);
     };
     
@@ -623,7 +643,8 @@ bool MenuWindow::ValidateInputs() {
     GetWindowTextA(m_gaussianClipboardEdit, buffer, sizeof(buffer));
     std::string gaussianClipboardPath = buffer;
     if (!gaussianClipboardPath.empty()) {
-        DWORD attributes = GetFileAttributesA(gaussianClipboardPath.c_str());
+        std::string resolved = resolveConfigPathForFile(gaussianClipboardPath);
+        DWORD attributes = GetFileAttributesA(resolved.c_str());
         if (attributes == INVALID_FILE_ATTRIBUTES) {
             MessageBoxA(m_hwnd, "Gaussian clipboard path does not exist!", "Validation Error", MB_OK | MB_ICONERROR);
             return false;
@@ -757,6 +778,51 @@ void MenuWindow::OnBrowseGaussianClipboard() {
     
     if (GetOpenFileNameA(&ofn)) {
         SetWindowTextA(m_gaussianClipboardEdit, filename);
+    }
+}
+
+void MenuWindow::OnOpenLogFile() {
+    try {
+        if (g_config.logFile.empty()) {
+            MessageBoxA(m_hwnd, "Log file path is empty (log_file).", "Open Log File", MB_OK | MB_ICONWARNING);
+            return;
+        }
+
+        // Resolve %VAR% and relative path against config.ini directory
+        std::string logFilePath = resolveConfigPathForFile(g_config.logFile);
+        if (logFilePath.empty()) {
+            MessageBoxA(m_hwnd, "Failed to resolve log file path.", "Open Log File", MB_OK | MB_ICONERROR);
+            return;
+        }
+
+        std::filesystem::path p(logFilePath);
+
+        // Ensure directory exists
+        if (p.has_parent_path()) {
+            std::error_code ec;
+            std::filesystem::create_directories(p.parent_path(), ec);
+        }
+
+        // Ensure file exists
+        {
+            std::error_code ec;
+            if (!std::filesystem::exists(p, ec)) {
+                std::ofstream f(p.string(), std::ios::app);
+                f.close();
+            }
+        }
+
+        HINSTANCE h = ShellExecuteA(NULL, "open", p.string().c_str(), NULL, NULL, SW_SHOWNORMAL);
+        if ((INT_PTR)h <= 32) {
+            std::string msg = "Failed to open log file. ShellExecute error: " + std::to_string((INT_PTR)h) +
+                              "\n\nPath: " + p.string();
+            MessageBoxA(m_hwnd, msg.c_str(), "Open Log File", MB_OK | MB_ICONERROR);
+        }
+    } catch (const std::exception& e) {
+        std::string msg = std::string("Exception opening log file: ") + e.what();
+        MessageBoxA(m_hwnd, msg.c_str(), "Open Log File", MB_OK | MB_ICONERROR);
+    } catch (...) {
+        MessageBoxA(m_hwnd, "Unknown error opening log file.", "Open Log File", MB_OK | MB_ICONERROR);
     }
 }
 
