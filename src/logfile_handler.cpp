@@ -36,8 +36,8 @@ bool LogFileHandler::containsString(const std::string& content, const std::strin
 // 识别log文件类型
 LogFileType LogFileHandler::identifyLogType(const std::string& filepath) {
     try {
-        // 读取前3行
-        std::string firstLines = readFirstLines(filepath, 3);
+        // 读取前5行
+        std::string firstLines = readFirstLines(filepath, 5);
         
         if (firstLines.empty()) {
             LOG_WARNING("Failed to read first lines from: " + filepath);
