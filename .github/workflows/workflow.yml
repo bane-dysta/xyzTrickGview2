@@ -41,14 +41,14 @@ jobs:
           ls -la
           find . -maxdepth 3 -name "xyzTrick.exe" -o -name "clipxtb.exe"
 
-#      - name: Verify build outputs
-#        run: |
-#          test -f xyzTrick.exe
-#          test -f config.ini
-#          test -f build/clipxtb.exe
-#          test -f external/OfakeG.exe
-#          test -f inno_setup/xyzclip.iss
-#          ls -R
+      - name: Verify build outputs
+        run: |
+          ls -la
+          test -f xyzTrick.exe && echo ok: xyzTrick.exe
+          test -f config.ini && echo ok: config.ini
+          test -f build/clipxtb.exe && echo ok: build/clipxtb.exe
+          test -f external/OfakeG.exe && echo ok: external/OfakeG.exe
+          test -f inno_setup/xyzclip.iss && echo ok: inno_setup/xyzclip.iss
 
       - name: Upload staging artifact for installer
         uses: actions/upload-artifact@v4
