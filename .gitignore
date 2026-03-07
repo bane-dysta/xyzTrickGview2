@@ -1,5 +1,4 @@
 build/*
-*.ini
 *.exe
 logs/*
 *.gjf
@@ -11,3 +10,4 @@ ofg
 *.zip
 *.tgz
 tar
+xtbclip.ini
