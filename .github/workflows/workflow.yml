@@ -1,0 +1,101 @@
+name: Build Windows App and Installer
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-windows-binary:
+    name: Cross-build Windows binaries on Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            mingw-w64 \
+            make \
+            g++-mingw-w64-x86-64 \
+            gcc-mingw-w64-x86-64 \
+            binutils-mingw-w64-x86-64
+
+      - name: Build main application
+        run: make
+
+      - name: Build plugin executable
+        run: |
+          mkdir -p build
+          x86_64-w64-mingw32-g++ plugins/clipxtb.cpp \
+            -o build/clipxtb.exe \
+            -luser32 -lkernel32 -lcomctl32 -lole32 -lgdi32 -lshell32 \
+            -static-libgcc -static-libstdc++ \
+            -std=c++17 -s -O2
+
+      - name: Verify build outputs
+        run: |
+          test -f xyzTrick.exe
+          test -f config.ini
+          test -f build/clipxtb.exe
+          test -f external/OfakeG.exe
+          test -f inno_setup/xyzclip.iss
+          ls -R
+
+      - name: Upload staging artifact for installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          if-no-files-found: error
+          path: |
+            xyzTrick.exe
+            config.ini
+            build/clipxtb.exe
+            external/OfakeG.exe
+            inno_setup/**
+            resources/**
+
+  build-installer:
+    name: Build installer on Windows
+    runs-on: windows-2022
+    needs: build-windows-binary
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: staging
+
+      - name: Show staging files
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse staging
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+
+          curl.exe -L -o innosetup.exe https://files.jrsoftware.org/is/6/innosetup-6.5.0.exe
+          .\innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+
+          ISCC.exe staging\inno_setup\xyzclip.iss
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          if-no-files-found: error
+          path: |
+            staging\inno_setup\xyzTrick_setup.exe
