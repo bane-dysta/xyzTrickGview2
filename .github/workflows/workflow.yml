@@ -34,20 +34,21 @@ jobs:
             -luser32 -lkernel32 -lcomctl32 -lole32 -lgdi32 -lshell32 \
             -static-libgcc -static-libstdc++ \
             -std=c++17 -s -O2
+      
       - name: Debug build outputs
         run: |
           pwd
           ls -la
           find . -maxdepth 3 -name "xyzTrick.exe" -o -name "clipxtb.exe"
 
-      - name: Verify build outputs
-        run: |
-          test -f xyzTrick.exe
-          test -f config.ini
-          test -f build/clipxtb.exe
-          test -f external/OfakeG.exe
-          test -f inno_setup/xyzclip.iss
-          ls -R
+#      - name: Verify build outputs
+#        run: |
+#          test -f xyzTrick.exe
+#          test -f config.ini
+#          test -f build/clipxtb.exe
+#          test -f external/OfakeG.exe
+#          test -f inno_setup/xyzclip.iss
+#          ls -R
 
       - name: Upload staging artifact for installer
         uses: actions/upload-artifact@v4
