@@ -86,7 +86,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
 
-          curl.exe -L -o innosetup.exe https://files.jrsoftware.org/is/6/innosetup-6.5.0.exe
+          curl.exe -L -o innosetup.exe https://files.jrsoftware.org/is/6/innosetup-6.6.0.exe
           .\innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
           "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
