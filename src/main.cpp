@@ -8,6 +8,8 @@
 #include <vector>
 #include <chrono>
 #include <filesystem>
+#include <algorithm>
+#include <cctype>
 
 // 引入自定义模块
 #include "core.h"
