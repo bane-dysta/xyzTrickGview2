@@ -19,6 +19,7 @@
 #include "menu.h"
 #include "version.h"
 #include "logfile_handler.h"
+#include "encoding.h"
 
 // 解决Windows ERROR宏冲突
 #ifdef ERROR
@@ -658,23 +659,19 @@ bool processFileConversion(const std::string& filepath) {
             return false;
         }
         
-        // 读取文件内容
-        std::ifstream file(filepath);
-        if (!file.is_open()) {
-            LOG_ERROR("Failed to open file: " + filepath);
+        // 读取文件内容（自动检测编码）
+        EncodedFileContent fileContent = readFileWithEncoding(filepath);
+        
+        if (fileContent.content.empty()) {
+            LOG_ERROR("Failed to read file or file is empty: " + filepath);
             showTrayNotification("XYZ Monitor", "无法打开文件: " + filepath, NIIF_ERROR);
             return false;
         }
         
-        std::string content((std::istreambuf_iterator<char>(file)),
-                           std::istreambuf_iterator<char>());
-        file.close();
+        std::string& content = fileContent.content;
         
-        if (content.empty()) {
-            LOG_ERROR("File is empty: " + filepath);
-            showTrayNotification("XYZ Monitor", "文件为空: " + filepath, NIIF_ERROR);
-            return false;
-        }
+        LOG_INFO("Read file with encoding: " + encodingToString(fileContent.encoding) + 
+                 ", line ending: " + lineEndingToString(fileContent.lineEnding));
         
         // 检查内容长度
         if (content.length() > g_config.maxClipboardChars) {

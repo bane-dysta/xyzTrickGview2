@@ -1,30 +1,35 @@
 #include "logfile_handler.h"
 #include "config.h"
 #include "logger.h"
+#include "encoding.h"
+#include "core.h"
 #include <fstream>
 #include <sstream>
 #include <algorithm>
 #include <vector>
 #include <windows.h>
 
-// 读取文件的前N行
+// 读取文件的前N行（使用编码检测）
 std::string LogFileHandler::readFirstLines(const std::string& filepath, int lineCount) {
-    std::ifstream file(filepath);
-    if (!file.is_open()) {
-        LOG_ERROR("Failed to open file for reading first lines: " + filepath);
+    EncodedFileContent fileContent = readFileWithEncoding(filepath);
+    
+    if (fileContent.content.empty()) {
+        LOG_ERROR("Failed to read file for reading first lines: " + filepath);
         return "";
     }
     
+    // 按行分割内容
+    std::vector<std::string> lines = split(fileContent.content, '\n');
+    
     std::ostringstream oss;
-    std::string line;
     int count = 0;
     
-    while (std::getline(file, line) && count < lineCount) {
+    for (const auto& line : lines) {
+        if (count >= lineCount) break;
         oss << line << "\n";
         count++;
     }
     
-    file.close();
     return oss.str();
 }
 

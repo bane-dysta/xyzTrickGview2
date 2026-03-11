@@ -1,6 +1,7 @@
 #include "converter.h"
 #include "logger.h"
 #include "config.h"
+#include "encoding.h"
 #include <fstream>
 #include <sstream>
 #include <iomanip>
@@ -419,41 +420,49 @@ std::vector<Atom> parseGaussianClipboard(const std::string& filename) {
     std::vector<Atom> atoms;
     
     try {
-        std::ifstream file(filename);
-        if (!file.is_open()) {
+        // 使用编码检测读取文件
+        EncodedFileContent fileContent = readFileWithEncoding(filename);
+        
+        if (fileContent.content.empty()) {
             LOG_ERROR("Cannot open Gaussian clipboard file: " + filename);
             return atoms;
         }
         
-        std::string line;
+        // 按行分割内容
+        std::vector<std::string> lines = split(fileContent.content, '\n');
         
-        // 跳过第一行（头部）
-        if (!std::getline(file, line)) {
+        if (lines.empty()) {
             LOG_ERROR("Empty file or cannot read header");
             return atoms;
         }
         
-        // 读取原子数量
-        if (!std::getline(file, line)) {
+        // 跳过第一行（头部）
+        // 第二行是原子数量
+        if (lines.size() < 2) {
             LOG_ERROR("Cannot read number of atoms");
             return atoms;
         }
         
+        std::string& atomCountLine = lines[1];
+        
         int numAtoms;
         try {
-            numAtoms = std::stoi(line);
+            numAtoms = std::stoi(atomCountLine);
             LOG_DEBUG("Expected number of atoms: " + std::to_string(numAtoms));
         } catch (const std::exception& e) {
-            LOG_ERROR("Cannot parse number of atoms: " + line);
+            LOG_ERROR("Cannot parse number of atoms: " + atomCountLine);
             return atoms;
         }
         
-        // 读取原子数据
+        // 读取原子数据（从第三行开始）
         for (int i = 0; i < numAtoms; i++) {
-            if (!std::getline(file, line)) {
+            size_t lineIndex = 2 + static_cast<size_t>(i);
+            if (lineIndex >= lines.size()) {
                 LOG_WARNING("Expected " + std::to_string(numAtoms) + " atoms, but only found " + std::to_string(i));
                 break;
             }
+            
+            std::string& line = lines[lineIndex];
             
             std::istringstream iss(line);
             int atomicNumber;
@@ -484,7 +493,6 @@ std::vector<Atom> parseGaussianClipboard(const std::string& filename) {
             }
         }
         
-        file.close();
         LOG_INFO("Parsed " + std::to_string(atoms.size()) + " atoms from Gaussian clipboard");
     } catch (const std::exception& e) {
         LOG_ERROR("Exception parsing Gaussian clipboard: " + std::string(e.what()));

@@ -9,7 +9,7 @@ RC = x86_64-w64-mingw32-windres
 TARGET = xyzTrick.exe
 
 # Source files (now in src directory)
-SOURCES = src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp src/menu.cpp src/logfile_handler.cpp
+SOURCES = src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp src/menu.cpp src/logfile_handler.cpp src/encoding.cpp
 
 # Object files (put in build directory)
 OBJECTS = $(SOURCES:src/%.cpp=build/%.o)
@@ -122,6 +122,7 @@ build/config.o: src/config.cpp src/config.h src/logger.h src/core.h
 build/converter.o: src/converter.cpp src/converter.h src/logger.h src/core.h
 build/menu.o: src/menu.cpp src/menu.h src/config.h src/logger.h
 build/logfile_handler.o: src/logfile_handler.cpp src/logfile_handler.h src/config.h src/logger.h
+build/encoding.o: src/encoding.cpp src/encoding.h src/logger.h
 
 # Mark targets that don't create files
 .PHONY: all no-res debug clean install setup config rebuild check help
