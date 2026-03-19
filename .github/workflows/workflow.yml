@@ -80,22 +80,18 @@ jobs:
         run: |
           Get-ChildItem -Recurse staging
 
-      - name: Install Inno Setup 6.6.0
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $PSNativeCommandUseErrorActionPreference = $true
-
-          choco install innosetup --version=6.6.0 -y --no-progress
-          "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: Build installer
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
 
-          ISCC.exe staging\inno_setup\xyzclip.iss
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            throw "ISCC.exe not found: $iscc"
+          }
+
+          & $iscc "staging\inno_setup\xyzclip.iss"
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
