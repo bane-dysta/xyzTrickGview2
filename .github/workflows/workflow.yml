@@ -80,14 +80,13 @@ jobs:
         run: |
           Get-ChildItem -Recurse staging
 
-      - name: Install Inno Setup
+      - name: Install Inno Setup 6.6.0
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
 
-          curl.exe -L -o innosetup.exe https://files.jrsoftware.org/is/6/innosetup-6.6.0.exe
-          .\innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          choco install innosetup --version=6.6.0 -y --no-progress
           "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Build installer
