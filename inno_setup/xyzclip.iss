@@ -7,9 +7,22 @@
 #define MyAppPublisher "Bane Dysta"
 #define MyAppURL "https://bane-dysta.top/software/xyzTrick/"
 #define MyAppExeName "xyzTrick.exe"
-#define MyAppAssocName "xyz coordinate file"
-#define MyAppAssocExt ".xyz"
-#define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
+
+; ===== 文件关联（仿照 banewfn，分别让用户选择） =====
+#define MyAppAssocExtXYZ ".xyz"
+#define MyAppAssocExtLOG ".log"
+#define MyAppAssocExtOUT ".out"
+#define MyAppAssocExtCHG ".chg"
+
+#define MyProgIdXYZ "xyzTrick.xyz"
+#define MyProgIdLOG "xyzTrick.log"
+#define MyProgIdOUT "xyzTrick.out"
+#define MyProgIdCHG "xyzTrick.chg"
+
+#define MyTypeNameXYZ "xyz coordinate file"
+#define MyTypeNameLOG "log file"
+#define MyTypeNameOUT "out file"
+#define MyTypeNameCHG "chg file"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
@@ -22,7 +35,9 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName=D:/program\{#MyAppName}
+DefaultDirName={autopf}\{#MyAppName}
+DisableDirPage=no
+UsePreviousAppDir=yes
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ; "ArchitecturesAllowed=x64compatible" specifies that Setup cannot run
 ; on anything but x64 and Windows 11 on Arm.
@@ -47,8 +62,27 @@ WizardStyle=classic dynamic
 Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "chinesesimplified"; MessagesFile: ".\ChineseSimplified.isl"
 
+[CustomMessages]
+english.AutoStart=Launch {#MyAppName} when Windows starts
+chinesesimplified.AutoStart=开机自动启动 {#MyAppName}
+english.FileAssociations=File associations
+chinesesimplified.FileAssociations=文件关联
+english.AssocXYZ=Associate .xyz with {#MyAppName}
+chinesesimplified.AssocXYZ=将 .xyz 与 {#MyAppName} 关联
+english.AssocLOG=Associate .log with {#MyAppName}
+chinesesimplified.AssocLOG=将 .log 与 {#MyAppName} 关联
+english.AssocOUT=Associate .out with {#MyAppName}
+chinesesimplified.AssocOUT=将 .out 与 {#MyAppName} 关联
+english.AssocCHG=Associate .chg with {#MyAppName}
+chinesesimplified.AssocCHG=将 .chg 与 {#MyAppName} 关联
+
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "autostart"; Description: "{cm:AutoStart}"; GroupDescription: "附加任务:"; Flags: unchecked
+Name: "assoc_xyz"; Description: "{cm:AssocXYZ}"; GroupDescription: "{cm:FileAssociations}"; Flags: checkedonce
+Name: "assoc_log"; Description: "{cm:AssocLOG}"; GroupDescription: "{cm:FileAssociations}"; Flags: checkedonce
+Name: "assoc_out"; Description: "{cm:AssocOUT}"; GroupDescription: "{cm:FileAssociations}"; Flags: checkedonce
+Name: "assoc_chg"; Description: "{cm:AssocCHG}"; GroupDescription: "{cm:FileAssociations}"; Flags: checkedonce
 
 [Files]
 Source: "..\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -58,10 +92,41 @@ Source: "..\external\OfakeG.exe"; DestDir: "{app}\plugins"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Registry]
-Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExt}\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppAssocKey}"; ValueData: ""; Flags: uninsdeletevalue
-Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}"; ValueType: string; ValueName: ""; ValueData: "{#MyAppAssocName}"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"
-Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
+; ===== .xyz =====
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExtXYZ}"; ValueType: string; ValueName: ""; ValueData: "{#MyProgIdXYZ}"; Flags: uninsdeletevalue; Tasks: assoc_xyz
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExtXYZ}\OpenWithProgids"; ValueType: string; ValueName: "{#MyProgIdXYZ}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: assoc_xyz
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdXYZ}"; ValueType: string; ValueName: ""; ValueData: "{#MyTypeNameXYZ}"; Flags: uninsdeletekey; Tasks: assoc_xyz
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdXYZ}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: assoc_xyz
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdXYZ}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: assoc_xyz
+
+; ===== .log =====
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExtLOG}"; ValueType: string; ValueName: ""; ValueData: "{#MyProgIdLOG}"; Flags: uninsdeletevalue; Tasks: assoc_log
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExtLOG}\OpenWithProgids"; ValueType: string; ValueName: "{#MyProgIdLOG}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: assoc_log
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdLOG}"; ValueType: string; ValueName: ""; ValueData: "{#MyTypeNameLOG}"; Flags: uninsdeletekey; Tasks: assoc_log
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdLOG}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: assoc_log
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdLOG}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: assoc_log
+
+; ===== .out =====
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExtOUT}"; ValueType: string; ValueName: ""; ValueData: "{#MyProgIdOUT}"; Flags: uninsdeletevalue; Tasks: assoc_out
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExtOUT}\OpenWithProgids"; ValueType: string; ValueName: "{#MyProgIdOUT}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: assoc_out
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdOUT}"; ValueType: string; ValueName: ""; ValueData: "{#MyTypeNameOUT}"; Flags: uninsdeletekey; Tasks: assoc_out
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdOUT}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: assoc_out
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdOUT}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: assoc_out
+
+; ===== .chg =====
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExtCHG}"; ValueType: string; ValueName: ""; ValueData: "{#MyProgIdCHG}"; Flags: uninsdeletevalue; Tasks: assoc_chg
+Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExtCHG}\OpenWithProgids"; ValueType: string; ValueName: "{#MyProgIdCHG}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: assoc_chg
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdCHG}"; ValueType: string; ValueName: ""; ValueData: "{#MyTypeNameCHG}"; Flags: uninsdeletekey; Tasks: assoc_chg
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdCHG}\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#MyAppExeName},0"; Tasks: assoc_chg
+Root: HKA; Subkey: "Software\Classes\{#MyProgIdCHG}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""; Tasks: assoc_chg
+
+; （可选但推荐）告诉系统 xyzTrick.exe 支持这些后缀，让“打开方式”更稳定出现
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\SupportedTypes"; ValueType: string; ValueName: "{#MyAppAssocExtXYZ}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: assoc_xyz
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\SupportedTypes"; ValueType: string; ValueName: "{#MyAppAssocExtLOG}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: assoc_log
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\SupportedTypes"; ValueType: string; ValueName: "{#MyAppAssocExtOUT}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: assoc_out
+Root: HKA; Subkey: "Software\Classes\Applications\{#MyAppExeName}\SupportedTypes"; ValueType: string; ValueName: "{#MyAppAssocExtCHG}"; ValueData: ""; Flags: uninsdeletevalue; Tasks: assoc_chg
+
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\{#MyAppExeName}"""; Flags: uninsdeletevalue; Tasks: autostart
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -69,4 +134,3 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
-
