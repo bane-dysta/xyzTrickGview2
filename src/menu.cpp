@@ -621,12 +621,30 @@ bool MenuWindow::ValidateInputs() {
         MessageBoxA(m_hwnd, "Primary hotkey cannot be empty!", "Validation Error", MB_OK | MB_ICONERROR);
         return false;
     }
+
+    {
+        UINT modifiers = 0;
+        UINT vk = 0;
+        if (!parseHotkey(hotkey, modifiers, vk)) {
+            MessageBoxA(m_hwnd, "Primary hotkey format is invalid!", "Validation Error", MB_OK | MB_ICONERROR);
+            return false;
+        }
+    }
     
     GetWindowTextA(m_hotkeyReverseEdit, buffer, sizeof(buffer));
     std::string hotkeyReverse = buffer;
     if (hotkeyReverse.empty()) {
         MessageBoxA(m_hwnd, "Reverse hotkey cannot be empty!", "Validation Error", MB_OK | MB_ICONERROR);
         return false;
+    }
+
+    {
+        UINT modifiers = 0;
+        UINT vk = 0;
+        if (!parseHotkey(hotkeyReverse, modifiers, vk)) {
+            MessageBoxA(m_hwnd, "Reverse hotkey format is invalid!", "Validation Error", MB_OK | MB_ICONERROR);
+            return false;
+        }
     }
     
     // 验证GView路径
@@ -735,6 +753,11 @@ void MenuWindow::ApplySettings() {
         // 重新注册热键
         extern bool reregisterHotkeys();
         if (reregisterHotkeys()) {
+            unregisterPluginHotkeys();
+            if (!registerPluginHotkeys()) {
+                LOG_WARNING("Failed to re-register some plugin hotkeys after applying settings");
+            }
+
             LOG_INFO("Hotkeys re-registered successfully");
             MessageBoxA(m_hwnd, "Settings applied successfully!", "Success", MB_OK | MB_ICONINFORMATION);
         } else {
@@ -911,8 +934,24 @@ void MenuWindow::OnAddPlugin() {
         MessageBoxA(m_hwnd, "Plugin name and command are required!", "Validation Error", MB_OK | MB_ICONERROR);
         return;
     }
+
+    if (!hotkey.empty()) {
+        UINT modifiers = 0;
+        UINT vk = 0;
+        if (!parseHotkey(hotkey, modifiers, vk)) {
+            MessageBoxA(m_hwnd, "Plugin hotkey format is invalid!", "Validation Error", MB_OK | MB_ICONERROR);
+            return;
+        }
+    }
     
     if (addPlugin(name, cmd, hotkey)) {
+        std::string exeDir = getExecutableDirectory();
+        std::string configPath = exeDir.empty() ? "config.ini" : (exeDir + "\\config.ini");
+        saveConfig(configPath);
+
+        unregisterPluginHotkeys();
+        registerPluginHotkeys();
+
         UpdatePluginList();
         MessageBoxA(m_hwnd, "Plugin added successfully!", "Success", MB_OK | MB_ICONINFORMATION);
         
@@ -939,6 +978,13 @@ void MenuWindow::OnRemovePlugin() {
     if (MessageBoxA(m_hwnd, ("Are you sure you want to remove plugin '" + name + "'?").c_str(), 
                     "Confirm Removal", MB_YESNO | MB_ICONQUESTION) == IDYES) {
         if (removePlugin(name)) {
+            std::string exeDir = getExecutableDirectory();
+            std::string configPath = exeDir.empty() ? "config.ini" : (exeDir + "\\config.ini");
+            saveConfig(configPath);
+
+            unregisterPluginHotkeys();
+            registerPluginHotkeys();
+
             UpdatePluginList();
             MessageBoxA(m_hwnd, "Plugin removed successfully!", "Success", MB_OK | MB_ICONINFORMATION);
         } else {

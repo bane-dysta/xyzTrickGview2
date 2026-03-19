@@ -2,12 +2,12 @@
 
 // 版本信息定义
 #define VERSION_MAJOR 1
-#define VERSION_MINOR 0
+#define VERSION_MINOR 1
 #define VERSION_PATCH 0
 #define VERSION_BUILD 0
 
 // 版本字符串
-#define VERSION_STRING "2.0.3"
+#define VERSION_STRING "2.1.0"
 
 // 程序信息
 #define APP_NAME "XYZ Monitor"

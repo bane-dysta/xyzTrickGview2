@@ -179,7 +179,13 @@ std::vector<unsigned char> readRawFile(const std::string& filepath) {
     
     // 获取文件大小
     file.seekg(0, std::ios::end);
-    size_t fileSize = file.tellg();
+    std::streampos endPos = file.tellg();
+    if (endPos <= 0) {
+        LOG_WARNING("Failed to determine file size or file is empty: " + filepath);
+        return buffer;
+    }
+
+    size_t fileSize = static_cast<size_t>(endPos);
     file.seekg(0, std::ios::beg);
     
     if (fileSize == 0) {
@@ -196,9 +202,17 @@ std::vector<unsigned char> readRawFile(const std::string& filepath) {
     
     buffer.resize(fileSize);
     file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
+
+    std::streamsize bytesReadSigned = file.gcount();
     file.close();
-    
-    size_t bytesRead = file.gcount();
+
+    if (bytesReadSigned <= 0) {
+        LOG_WARNING("No data read from file: " + filepath);
+        buffer.clear();
+        return buffer;
+    }
+
+    size_t bytesRead = static_cast<size_t>(bytesReadSigned);
     if (bytesRead < fileSize) {
         buffer.resize(bytesRead);
     }

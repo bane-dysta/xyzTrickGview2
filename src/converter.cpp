@@ -8,6 +8,17 @@
 #include <algorithm>
 #include <regex>
 
+namespace {
+
+size_t skipLeadingBlankLines(const std::vector<std::string>& lines, size_t startIndex) {
+    while (startIndex < lines.size() && trim(lines[startIndex]).empty()) {
+        ++startIndex;
+    }
+    return startIndex;
+}
+
+} // namespace
+
 // 解析科学计数法数字
 double parseScientificNumber(const std::string& str) {
     try {
@@ -69,6 +80,7 @@ OptimizationInfo parseOptimizationInfo(const std::string& comment) {
         // 匹配能量 E=
         if (std::regex_search(comment, match, energyRegex)) {
             info.energy = parseScientificNumber(match[1].str());
+            info.hasEnergy = true;
             info.hasData = true;
             LOG_DEBUG("Parsed E: " + std::to_string(info.energy));
         }
@@ -82,6 +94,10 @@ OptimizationInfo parseOptimizationInfo(const std::string& comment) {
 
 // 检查是否为有效的坐标行
 bool isValidCoordinateLine(const std::string& line) {
+    if (trim(line).empty()) {
+        return false;
+    }
+
     std::vector<std::string> parts = splitWhitespace(line);
     
     // 需要足够的列来包含element和xyz
@@ -104,14 +120,23 @@ bool isValidCoordinateLine(const std::string& line) {
 bool isSimplifiedXYZFormat(const std::vector<std::string>& lines) {
     if (lines.empty()) return false;
     
-    size_t maxCheck = std::min(static_cast<size_t>(5), lines.size());
-    for (size_t i = 0; i < maxCheck; ++i) {
-        if (!isValidCoordinateLine(lines[i])) {
+    size_t checked = 0;
+    for (const auto& line : lines) {
+        if (trim(line).empty()) {
+            continue;
+        }
+
+        if (!isValidCoordinateLine(line)) {
             return false;
+        }
+
+        ++checked;
+        if (checked >= 5) {
+            break;
         }
     }
     
-    return true;
+    return checked > 0;
 }
 
 // 检查是否为XYZ格式
@@ -127,26 +152,33 @@ bool isXYZFormat(const std::string& content) {
             return false;
         }
         
-        std::vector<std::string> lines = split(content, '\n');
+        std::vector<std::string> lines = splitLines(content, true);
         if (lines.empty()) {
             LOG_DEBUG("No lines found in content");
+            return false;
+        }
+
+        size_t firstLine = skipLeadingBlankLines(lines, 0);
+        if (firstLine >= lines.size()) {
+            LOG_DEBUG("No non-empty lines found in content");
             return false;
         }
         
         // 检查是否是标准XYZ格式（第一行是原子数）
         try {
-            int atomCount = std::stoi(lines[0]);
+            int atomCount = std::stoi(trim(lines[firstLine]));
             if (atomCount > 0 && atomCount <= 10000) {
-                if (lines.size() < static_cast<size_t>(atomCount + 2)) {
+                if ((lines.size() - firstLine) < static_cast<size_t>(atomCount + 2)) {
                     LOG_DEBUG("Not enough lines for atom count: " + std::to_string(atomCount));
                     return false;
                 }
                 
                 size_t maxCheck = std::min(static_cast<size_t>(5), static_cast<size_t>(atomCount));
                 for (size_t i = 0; i < maxCheck; ++i) {
-                    if (i + 2 < lines.size()) {
-                        if (!isValidCoordinateLine(lines[i + 2])) {
-                            LOG_DEBUG("Invalid coordinate line at index: " + std::to_string(i + 2));
+                    size_t lineIndex = firstLine + 2 + i;
+                    if (lineIndex < lines.size()) {
+                        if (!isValidCoordinateLine(lines[lineIndex])) {
+                            LOG_DEBUG("Invalid coordinate line at index: " + std::to_string(lineIndex));
                             return false;
                         }
                     }
@@ -184,7 +216,7 @@ bool isChgFormat(const std::string& content) {
             return false;
         }
         
-        std::vector<std::string> lines = split(content, '\n');
+        std::vector<std::string> lines = splitLines(content, true);
         if (lines.empty()) {
             LOG_DEBUG("No lines found in content");
             return false;
@@ -246,10 +278,11 @@ bool isChgFormat(const std::string& content) {
 
 // 读取单帧XYZ数据
 bool readXYZFrame(const std::vector<std::string>& lines, size_t startLine, Frame& frame, size_t& nextStart) {
+    startLine = skipLeadingBlankLines(lines, startLine);
     if (startLine >= lines.size()) return false;
     
     try {
-        int numAtoms = std::stoi(lines[startLine]);
+        int numAtoms = std::stoi(trim(lines[startLine]));
         if (numAtoms <= 0) return false;
         
         frame.comment = (startLine + 1 < lines.size()) ? lines[startLine + 1] : "";
@@ -261,7 +294,11 @@ bool readXYZFrame(const std::vector<std::string>& lines, size_t startLine, Frame
         
         for (int i = 0; i < numAtoms; ++i) {
             size_t lineIndex = startLine + 2 + static_cast<size_t>(i);
-            if (lineIndex >= lines.size()) break;
+            if (lineIndex >= lines.size()) {
+                LOG_WARNING("Frame ended unexpectedly while reading atoms. Expected " + std::to_string(numAtoms) +
+                            ", parsed " + std::to_string(frame.atoms.size()));
+                return false;
+            }
             
             std::vector<std::string> parts = splitWhitespace(lines[lineIndex]);
             int maxCol = std::max({g_config.elementColumn, g_config.xColumn, g_config.yColumn, g_config.zColumn});
@@ -281,6 +318,13 @@ bool readXYZFrame(const std::vector<std::string>& lines, size_t startLine, Frame
         }
         
         nextStart = startLine + static_cast<size_t>(numAtoms) + 2;
+
+        if (frame.atoms.size() != static_cast<size_t>(numAtoms)) {
+            LOG_WARNING("Parsed atom count does not match header. Expected " + std::to_string(numAtoms) +
+                        ", got " + std::to_string(frame.atoms.size()));
+            return false;
+        }
+
         return !frame.atoms.empty();
     } catch (const std::exception& e) {
         LOG_ERROR("Exception in readXYZFrame: " + std::string(e.what()));
@@ -293,19 +337,30 @@ std::vector<Frame> readMultiXYZ(const std::string& content) {
     std::vector<Frame> frames;
     
     try {
-        std::vector<std::string> lines = split(content, '\n');
+        std::vector<std::string> lines = splitLines(content, true);
         
         if (lines.empty()) {
             LOG_DEBUG("No lines to process");
             return frames;
         }
+
+        size_t firstLine = skipLeadingBlankLines(lines, 0);
+        if (firstLine >= lines.size()) {
+            LOG_DEBUG("No non-empty lines to process");
+            return frames;
+        }
         
         try {
-            std::stoi(lines[0]);
+            std::stoi(trim(lines[firstLine]));
             // 标准格式
             LOG_DEBUG("Processing standard XYZ format");
-            size_t lineIndex = 0;
+            size_t lineIndex = firstLine;
             while (lineIndex < lines.size()) {
+                lineIndex = skipLeadingBlankLines(lines, lineIndex);
+                if (lineIndex >= lines.size()) {
+                    break;
+                }
+
                 Frame frame;
                 size_t nextStart;
                 if (readXYZFrame(lines, lineIndex, frame, nextStart)) {
@@ -323,6 +378,9 @@ std::vector<Frame> readMultiXYZ(const std::string& content) {
             frame.comment = "Simplified XYZ format";
             
             for (const std::string& line : lines) {
+                if (trim(line).empty()) {
+                    continue;
+                }
                 std::vector<std::string> parts = splitWhitespace(line);
                 int maxCol = std::max({g_config.elementColumn, g_config.xColumn, g_config.yColumn, g_config.zColumn});
                 if (parts.size() >= static_cast<size_t>(maxCol)) {
@@ -359,7 +417,7 @@ Frame readChgFrame(const std::string& content) {
     frame.comment = "CHG Format (Element X Y Z Charge)";
     
     try {
-        std::vector<std::string> lines = split(content, '\n');
+        std::vector<std::string> lines = splitLines(content, true);
         
         if (lines.empty()) {
             LOG_DEBUG("No lines to process");
@@ -429,7 +487,7 @@ std::vector<Atom> parseGaussianClipboard(const std::string& filename) {
         }
         
         // 按行分割内容
-        std::vector<std::string> lines = split(fileContent.content, '\n');
+        std::vector<std::string> lines = splitLines(fileContent.content, true);
         
         if (lines.empty()) {
             LOG_ERROR("Empty file or cannot read header");
@@ -562,9 +620,9 @@ std::string writeGaussianLogGeometry(const Frame& frame, int frameNumber, const 
     oss << " \n";
     
     // 写入能量
-    if (frame.optInfo.hasData && frame.optInfo.energy != 0.0) {
+    if (frame.optInfo.hasEnergy) {
         oss << " SCF Done:  " << std::fixed << std::setprecision(9) << frame.optInfo.energy << "\n";
-    } else if (previousFrame && previousFrame->optInfo.hasData && previousFrame->optInfo.energy != 0.0) {
+    } else if (previousFrame && previousFrame->optInfo.hasEnergy) {
         oss << " SCF Done:  " << std::fixed << std::setprecision(9) << previousFrame->optInfo.energy << "\n";
     } else {
         oss << " SCF Done:      -100.000000000\n";

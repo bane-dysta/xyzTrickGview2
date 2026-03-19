@@ -18,6 +18,7 @@ struct OptimizationInfo {
     double maxDisp = -1.0;       // 最大位移
     double rmsDisp = -1.0;       // 方均根位移
     double energy = 0.0;         // 能量
+    bool hasEnergy = false;      // 是否成功解析能量
     bool hasData = false;        // 是否包含优化数据
 };
 
@@ -35,6 +36,7 @@ extern std::map<int, std::string> atomicNumberToSymbol;
 // 工具函数
 std::string trim(const std::string& str);
 std::vector<std::string> split(const std::string& str, char delim);
+std::vector<std::string> splitLines(const std::string& str, bool keepEmpty = true);
 std::vector<std::string> splitWhitespace(const std::string& str);
 int getAtomicNumber(const std::string& symbol);
 size_t calculateMaxChars(int memoryMB);

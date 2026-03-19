@@ -12,12 +12,10 @@
 #include <random>
 #include <map>
 
-#ifdef _MSC_VER
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "kernel32.lib")
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "shell32.lib")
-#endif
 
 // Configuration structure
 struct Config {

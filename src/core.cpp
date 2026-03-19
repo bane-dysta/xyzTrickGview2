@@ -4,6 +4,14 @@
 #include <algorithm>
 #include <cctype>
 
+namespace {
+
+bool isSpaceChar(unsigned char ch) {
+    return std::isspace(ch) != 0;
+}
+
+} // namespace
+
 // 原子序数映射
 std::map<std::string, int> atomicNumbers = {
     {"H", 1}, {"He", 2}, {"Li", 3}, {"Be", 4}, {"B", 5}, {"C", 6}, {"N", 7}, {"O", 8}, {"F", 9}, {"Ne", 10},
@@ -44,12 +52,21 @@ std::map<int, std::string> atomicNumberToSymbol = {
 
 // 字符串修整
 std::string trim(const std::string& str) {
-    size_t first = str.find_first_not_of(' ');
-    if (std::string::npos == first) {
-        return str;
+    size_t first = 0;
+    while (first < str.size() && isSpaceChar(static_cast<unsigned char>(str[first]))) {
+        ++first;
     }
-    size_t last = str.find_last_not_of(' ');
-    return str.substr(first, (last - first + 1));
+
+    if (first == str.size()) {
+        return "";
+    }
+
+    size_t last = str.size();
+    while (last > first && isSpaceChar(static_cast<unsigned char>(str[last - 1]))) {
+        --last;
+    }
+
+    return str.substr(first, last - first);
 }
 
 // 字符串分割
@@ -64,6 +81,42 @@ std::vector<std::string> split(const std::string& str, char delim) {
         }
     }
     return tokens;
+}
+
+// 按行分割（保留中间空行，可选是否保留空行）
+std::vector<std::string> splitLines(const std::string& str, bool keepEmpty) {
+    std::vector<std::string> lines;
+
+    if (str.empty()) {
+        return lines;
+    }
+
+    size_t start = 0;
+    while (start <= str.size()) {
+        size_t end = str.find('\n', start);
+        std::string line;
+
+        if (end == std::string::npos) {
+            line = str.substr(start);
+            if (keepEmpty || !line.empty()) {
+                lines.push_back(line);
+            }
+            break;
+        }
+
+        line = str.substr(start, end - start);
+        if (keepEmpty || !line.empty()) {
+            lines.push_back(line);
+        }
+        start = end + 1;
+
+        // 丢弃文件末尾仅由最后一个换行产生的额外空行
+        if (start == str.size()) {
+            break;
+        }
+    }
+
+    return lines;
 }
 
 // 字符串分割（多个分隔符）

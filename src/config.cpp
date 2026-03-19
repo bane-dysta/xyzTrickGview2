@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <vector>
+#include <cctype>
 
 // 声明外部函数
 extern void showTrayNotification(const std::string& title, const std::string& message, DWORD iconType = NIIF_INFO);
@@ -73,6 +74,77 @@ bool writeDefaultConfigFile(const std::string& configFile) {
     outFile << "other_log_viewer=notepad.exe\n";
     outFile.close();
     return true;
+}
+
+std::string toUpperAscii(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::toupper(ch));
+    });
+    return value;
+}
+
+bool parseBoolValue(const std::string& value, bool defaultValue = false) {
+    std::string normalized = toUpperAscii(trim(value));
+    if (normalized == "1" || normalized == "TRUE" || normalized == "YES" || normalized == "ON") {
+        return true;
+    }
+    if (normalized == "0" || normalized == "FALSE" || normalized == "NO" || normalized == "OFF") {
+        return false;
+    }
+    return defaultValue;
+}
+
+bool parseFunctionKey(const std::string& key, UINT& vk) {
+    if (key.size() < 2 || key[0] != 'F') {
+        return false;
+    }
+
+    try {
+        int functionIndex = std::stoi(key.substr(1));
+        if (functionIndex >= 1 && functionIndex <= 24) {
+            vk = static_cast<UINT>(VK_F1 + (functionIndex - 1));
+            return true;
+        }
+    } catch (...) {
+    }
+
+    return false;
+}
+
+bool parseNamedVirtualKey(const std::string& key, UINT& vk) {
+    static const std::vector<std::pair<std::string, UINT>> namedKeys = {
+        {"TAB", VK_TAB},
+        {"SPACE", VK_SPACE},
+        {"ENTER", VK_RETURN},
+        {"RETURN", VK_RETURN},
+        {"ESC", VK_ESCAPE},
+        {"ESCAPE", VK_ESCAPE},
+        {"BACKSPACE", VK_BACK},
+        {"BS", VK_BACK},
+        {"DELETE", VK_DELETE},
+        {"DEL", VK_DELETE},
+        {"INSERT", VK_INSERT},
+        {"INS", VK_INSERT},
+        {"HOME", VK_HOME},
+        {"END", VK_END},
+        {"PAGEUP", VK_PRIOR},
+        {"PGUP", VK_PRIOR},
+        {"PAGEDOWN", VK_NEXT},
+        {"PGDN", VK_NEXT},
+        {"LEFT", VK_LEFT},
+        {"RIGHT", VK_RIGHT},
+        {"UP", VK_UP},
+        {"DOWN", VK_DOWN}
+    };
+
+    for (const auto& entry : namedKeys) {
+        if (key == entry.first) {
+            vk = entry.second;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 } // namespace
@@ -292,9 +364,9 @@ bool loadConfig(const std::string& configFile) {
                     } else if (key == "log_level") {
                         g_config.logLevel = value;
                     } else if (key == "log_to_console") {
-                        g_config.logToConsole = (value == "true" || value == "1");
+                        g_config.logToConsole = parseBoolValue(value, g_config.logToConsole);
                     } else if (key == "log_to_file") {
-                        g_config.logToFile = (value == "true" || value == "1");
+                        g_config.logToFile = parseBoolValue(value, g_config.logToFile);
                     } else if (key == "wait_seconds") {
                         g_config.waitSeconds = std::stoi(value);
                     } else if (key == "max_memory_mb") {
@@ -316,7 +388,7 @@ bool loadConfig(const std::string& configFile) {
                             g_config.zColumn = std::stoi(trim(parts[2]));
                         }
                     } else if (key == "try_parse_chg_format") {
-                        g_config.tryParseChgFormat = (value == "true" || value == "1");
+                        g_config.tryParseChgFormat = parseBoolValue(value, g_config.tryParseChgFormat);
                     } else if (key == "orca_log_viewer") {
                         g_config.orcaLogViewer = value;
                     } else if (key == "gaussian_log_viewer") {
@@ -448,8 +520,7 @@ bool parseHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& vk) {
         }
         
         for (size_t i = 0; i < parts.size() - 1; ++i) {
-            std::string mod = parts[i];
-            std::transform(mod.begin(), mod.end(), mod.begin(), ::toupper);
+            std::string mod = toUpperAscii(parts[i]);
             
             if (mod == "CTRL") {
                 modifiers |= MOD_CONTROL;
@@ -465,24 +536,19 @@ bool parseHotkey(const std::string& hotkeyStr, UINT& modifiers, UINT& vk) {
             }
         }
         
-        std::string key = parts.back();
-        std::transform(key.begin(), key.end(), key.begin(), ::toupper);
-        
+        std::string key = toUpperAscii(parts.back());
+
         if (key.length() == 1) {
-            vk = key[0];
-        } else if (key == "F1") vk = VK_F1;
-        else if (key == "F2") vk = VK_F2;
-        else if (key == "F3") vk = VK_F3;
-        else if (key == "F4") vk = VK_F4;
-        else if (key == "F5") vk = VK_F5;
-        else if (key == "F6") vk = VK_F6;
-        else if (key == "F7") vk = VK_F7;
-        else if (key == "F8") vk = VK_F8;
-        else if (key == "F9") vk = VK_F9;
-        else if (key == "F10") vk = VK_F10;
-        else if (key == "F11") vk = VK_F11;
-        else if (key == "F12") vk = VK_F12;
-        else {
+            unsigned char ch = static_cast<unsigned char>(key[0]);
+            if (std::isalnum(ch)) {
+                vk = static_cast<UINT>(ch);
+            } else {
+                LOG_ERROR("Unsupported single-character hotkey: " + key);
+                return false;
+            }
+        } else if (parseFunctionKey(key, vk) || parseNamedVirtualKey(key, vk)) {
+            return true;
+        } else {
             LOG_ERROR("Unknown key: " + key);
             return false;
         }
@@ -505,8 +571,11 @@ bool reloadConfiguration() {
         bool oldLogToConsole = g_config.logToConsole;
         bool oldLogToFile = g_config.logToFile;
         
-        std::string exeDir = getExecutableDirectory();
-        std::string configPath = exeDir.empty() ? "config.ini" : exeDir + "/config.ini";
+        std::string configPath = g_configFilePath;
+        if (configPath.empty()) {
+            std::string exeDir = getExecutableDirectory();
+            configPath = exeDir.empty() ? "config.ini" : exeDir + "/config.ini";
+        }
         if (!loadConfig(configPath)) {
             LOG_WARNING("Failed to reload config file, using existing configuration");
             return false;

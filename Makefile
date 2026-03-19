@@ -8,25 +8,18 @@ RC = x86_64-w64-mingw32-windres
 # Target executable name
 TARGET = xyzTrick.exe
 
-# Main source files (in src directory)
+# Source files (now in src directory)
 SOURCES = src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp src/menu.cpp src/logfile_handler.cpp src/encoding.cpp
 
-# Main object files (put in build directory)
+# Object files (put in build directory)
 OBJECTS = $(SOURCES:src/%.cpp=build/%.o)
-
-# Plugin source files (each cpp -> one exe)
-PLUGIN_SOURCES = $(wildcard plugins/*.cpp)
-PLUGIN_TARGETS = $(PLUGIN_SOURCES:plugins/%.cpp=build/%.exe)
-PLUGIN_OBJECTS = $(PLUGIN_SOURCES:plugins/%.cpp=build/plugins/%.o)
-
-.SECONDARY: $(PLUGIN_OBJECTS)
 
 # Resource files
 RESOURCE_RC = resources/xyz_monitor.rc
 RESOURCE_OBJ = build/xyz_monitor_res.o
 
 # Include directories
-INCLUDES = -Isrc -Iplugins
+INCLUDES = -Isrc
 
 # Compiler flags for MinGW/GCC
 CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -static-libgcc -static-libstdc++ $(INCLUDES)
@@ -39,35 +32,21 @@ DEBUG_LDFLAGS = -static
 DEBUG_LIBS = $(LIBS)
 
 # Default target
-all: setup $(TARGET) plugins
+all: setup $(TARGET)
 
 # Setup build directory
 setup:
-	@mkdir -p build build/plugins logs temp
+	@mkdir -p build logs temp
 
 # Main target with resources
 $(TARGET): $(OBJECTS) $(RESOURCE_OBJ)
 	$(CXX) $(OBJECTS) $(RESOURCE_OBJ) -o $(TARGET) $(LDFLAGS) $(LIBS)
 	@echo "Build completed: $(TARGET)"
 
-# Rule for main object files
+# Rule for object files
 build/%.o: src/%.cpp
 	@mkdir -p build
 	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Rule for plugin object files
-build/plugins/%.o: plugins/%.cpp
-	@mkdir -p build/plugins
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Each plugin cpp generates its own exe
-build/%.exe: build/plugins/%.o
-	$(CXX) $< -o $@ $(LDFLAGS) $(LIBS)
-	@echo "Plugin build completed: $@"
-
-# Build all plugins
-plugins: $(PLUGIN_TARGETS)
-	@echo "All plugins built"
 
 # Compile resource file
 $(RESOURCE_OBJ): $(RESOURCE_RC)
@@ -82,10 +61,10 @@ $(RESOURCE_OBJ): $(RESOURCE_RC)
 debug: CXXFLAGS = $(DEBUG_CXXFLAGS)
 debug: LDFLAGS = $(DEBUG_LDFLAGS)
 debug: LIBS = $(DEBUG_LIBS)
-debug: all
+debug: $(TARGET)
 
 # Build without resources (if .rc file missing)
-no-res: setup $(OBJECTS) plugins
+no-res: $(OBJECTS)
 	$(CXX) $(OBJECTS) -o $(TARGET) $(LDFLAGS) $(LIBS)
 	@echo "Build completed without resources: $(TARGET)"
 
@@ -112,10 +91,9 @@ config:
 	@echo "Config template created: config.ini"
 
 # Install (copy to a bin directory)
-install: all
+install: $(TARGET)
 	@mkdir -p bin
 	cp $(TARGET) bin/
-	@for exe in $(PLUGIN_TARGETS); do cp $$exe bin/; done
 	@if [ -f "config.ini" ]; then cp config.ini bin/; fi
 	@if [ -f "resources/gview.ico" ]; then cp resources/gview.ico bin/; fi
 	@mkdir -p bin/logs bin/temp
@@ -127,15 +105,11 @@ rebuild: clean all
 # Check for required files
 check:
 	@echo "Checking required files..."
-	@for file in src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp src/menu.cpp src/logfile_handler.cpp src/encoding.cpp; do \
+	@for file in src/main.cpp src/core.cpp src/logger.cpp src/config.cpp src/converter.cpp src/menu.cpp src/logfile_handler.cpp; do \
 		if [ -f "$$file" ]; then echo "✓ $$file found"; else echo "✗ $$file missing!"; fi; \
 	done
-	@for file in src/core.h src/logger.h src/config.h src/converter.h src/menu.h src/logfile_handler.h src/encoding.h; do \
+	@for file in src/core.h src/logger.h src/config.h src/converter.h src/menu.h src/logfile_handler.h; do \
 		if [ -f "$$file" ]; then echo "✓ $$file found"; else echo "✗ $$file missing!"; fi; \
-	done
-	@echo "Checking plugin files..."
-	@for file in $(PLUGIN_SOURCES); do \
-		if [ -f "$$file" ]; then echo "✓ $$file found"; fi; \
 	done
 	@if [ -f "$(RESOURCE_RC)" ]; then echo "✓ $(RESOURCE_RC) found"; else echo "⚠ $(RESOURCE_RC) missing - use 'make no-res'"; fi
 	@if [ -f "resources/gview.ico" ]; then echo "✓ gview.ico found"; else echo "⚠ gview.ico missing - using default icon"; fi
@@ -143,7 +117,7 @@ check:
 # Dependencies
 build/main.o: src/main.cpp src/core.h src/logger.h src/config.h src/converter.h src/menu.h src/logfile_handler.h
 build/core.o: src/core.cpp src/core.h
-build/logger.o: src/logger.cpp src/logger.h
+build/logger.o: src/logger.cpp src/logger.h  
 build/config.o: src/config.cpp src/config.h src/logger.h src/core.h
 build/converter.o: src/converter.cpp src/converter.h src/logger.h src/core.h
 build/menu.o: src/menu.cpp src/menu.h src/config.h src/logger.h
@@ -151,4 +125,4 @@ build/logfile_handler.o: src/logfile_handler.cpp src/logfile_handler.h src/confi
 build/encoding.o: src/encoding.cpp src/encoding.h src/logger.h
 
 # Mark targets that don't create files
-.PHONY: all no-res debug clean install setup config rebuild check help plugins
+.PHONY: all no-res debug clean install setup config rebuild check help

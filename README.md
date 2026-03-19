@@ -1,9 +1,21 @@
 # XYZ Monitor
 
-**版本：2.0.2**  
+**版本：2.1.0**  
 **作者：Bane Dysta**
 
 一个便捷的分子结构格式转换工具，实现 XYZ 格式与 GaussianView 之间的无缝桥接。
+
+---
+
+## 🆕 2.1.0 改进亮点
+
+- **修复插件菜单命令冲突**：插件菜单项不再与“Reload Configuration / Exit / About”共用命令 ID
+- **增强剪贴板 Unicode 支持**：优先读写 `CF_UNICODETEXT`，提升中文与非 ASCII 内容兼容性
+- **修复标准 XYZ 空注释行解析**：支持保留标准 XYZ 中的空 comment 行与中间空行
+- **增强热键解析能力**：新增对 `Tab`、`Space`、方向键、`Insert/Delete/Home/End/PageUp/PageDown`、`F1-F24` 的支持
+- **提升配置鲁棒性**：布尔值解析改为不区分大小写，兼容 `true/false/yes/no/on/off/1/0`
+- **改进插件热键重载**：重载配置与设置保存后，会同步重新注册插件热键
+- **修复文件读取边界问题**：避免文件大小读取失败或实际读取字节数异常时出现误判
 
 ---
 

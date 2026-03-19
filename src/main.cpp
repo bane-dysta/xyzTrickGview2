@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <algorithm>
 #include <cctype>
+#include <cstring>
 
 // 引入自定义模块
 #include "core.h"
@@ -35,6 +36,7 @@
 #define ID_TRAY_RELOAD 2001
 #define ID_TRAY_EXIT 2002
 #define ID_TRAY_ABOUT 2003
+#define ID_TRAY_PLUGIN_BASE 3000
 
 // 热键ID
 #define HOTKEY_XYZ_TO_GVIEW 1
@@ -50,6 +52,140 @@ struct DeleteFileThreadParams {
 bool g_running = true;
 NOTIFYICONDATAA g_nid = {};
 HWND g_hwnd = NULL;
+
+namespace {
+
+class ClipboardGuard {
+public:
+    explicit ClipboardGuard(HWND owner) : m_opened(OpenClipboard(owner) != FALSE) {}
+
+    ~ClipboardGuard() {
+        if (m_opened) {
+            CloseClipboard();
+        }
+    }
+
+    bool isOpen() const { return m_opened; }
+
+private:
+    bool m_opened;
+};
+
+std::string wideToUtf8(const std::wstring& wide) {
+    if (wide.empty()) {
+        return "";
+    }
+
+    int required = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, NULL, 0, NULL, NULL);
+    if (required <= 0) {
+        return "";
+    }
+
+    std::string utf8(static_cast<size_t>(required), '\0');
+    int written = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, utf8.data(), required, NULL, NULL);
+    if (written <= 0) {
+        return "";
+    }
+
+    if (!utf8.empty() && utf8.back() == '\0') {
+        utf8.pop_back();
+    }
+
+    return utf8;
+}
+
+std::wstring utf8ToWide(const std::string& utf8) {
+    if (utf8.empty()) {
+        return L"";
+    }
+
+    int required = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, NULL, 0);
+    if (required <= 0) {
+        return L"";
+    }
+
+    std::wstring wide(static_cast<size_t>(required), L'\0');
+    int written = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, wide.data(), required);
+    if (written <= 0) {
+        return L"";
+    }
+
+    if (!wide.empty() && wide.back() == L'\0') {
+        wide.pop_back();
+    }
+
+    return wide;
+}
+
+std::string ansiToUtf8(const char* ansiText) {
+    if (ansiText == NULL || ansiText[0] == '\0') {
+        return "";
+    }
+
+    int wideSize = MultiByteToWideChar(CP_ACP, 0, ansiText, -1, NULL, 0);
+    if (wideSize <= 0) {
+        return "";
+    }
+
+    std::wstring wide(static_cast<size_t>(wideSize), L'\0');
+    if (MultiByteToWideChar(CP_ACP, 0, ansiText, -1, wide.data(), wideSize) <= 0) {
+        return "";
+    }
+
+    if (!wide.empty() && wide.back() == L'\0') {
+        wide.pop_back();
+    }
+
+    return wideToUtf8(wide);
+}
+
+std::string utf8ToAnsi(const std::string& utf8) {
+    std::wstring wide = utf8ToWide(utf8);
+    if (wide.empty()) {
+        return "";
+    }
+
+    int ansiSize = WideCharToMultiByte(CP_ACP, 0, wide.c_str(), -1, NULL, 0, NULL, NULL);
+    if (ansiSize <= 0) {
+        return "";
+    }
+
+    std::string ansi(static_cast<size_t>(ansiSize), '\0');
+    if (WideCharToMultiByte(CP_ACP, 0, wide.c_str(), -1, ansi.data(), ansiSize, NULL, NULL) <= 0) {
+        return "";
+    }
+
+    if (!ansi.empty() && ansi.back() == '\0') {
+        ansi.pop_back();
+    }
+
+    return ansi;
+}
+
+bool setClipboardTextData(UINT format, const void* data, size_t bytes) {
+    HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if (hMem == NULL) {
+        return false;
+    }
+
+    void* pMem = GlobalLock(hMem);
+    if (pMem == NULL) {
+        GlobalFree(hMem);
+        return false;
+    }
+
+    std::memcpy(pMem, data, bytes);
+    GlobalUnlock(hMem);
+
+    if (SetClipboardData(format, hMem) == NULL) {
+        GlobalFree(hMem);
+        return false;
+    }
+
+    return true;
+}
+
+} // namespace
 
 // 前置声明
 bool reregisterHotkeys();
@@ -95,6 +231,9 @@ bool reregisterHotkeys() {
                 LOG_ERROR("Failed to register primary hotkey: " + g_config.hotkey + " (Error: " + std::to_string(error) + ")");
                 return false;
             }
+        } else {
+            LOG_ERROR("Invalid primary hotkey configuration: " + g_config.hotkey);
+            return false;
         }
         
         // 注册反向热键（GView到XYZ）
@@ -106,6 +245,8 @@ bool reregisterHotkeys() {
                 LOG_ERROR("Failed to register reverse hotkey: " + g_config.hotkeyReverse + " (Error: " + std::to_string(error) + ")");
                 // 主热键已注册，不返回false
             }
+        } else {
+            LOG_WARNING("Invalid reverse hotkey configuration: " + g_config.hotkeyReverse);
         }
         
         return true;
@@ -123,6 +264,11 @@ bool reloadConfigurationWithHotkeys() {
         
         if (!reloadConfiguration()) {
             return false;
+        }
+
+        unregisterPluginHotkeys();
+        if (!registerPluginHotkeys()) {
+            LOG_WARNING("Failed to re-register some plugin hotkeys");
         }
         
         // 如果热键改变了，重新注册
@@ -201,7 +347,8 @@ void showTrayMenu(HWND hwnd, POINT pt) {
                         if (!plugin.hotkey.empty()) {
                             menuText += " (" + plugin.hotkey + ")";
                         }
-                        AppendMenuA(hPluginMenu, MF_STRING, 2000 + (&plugin - &g_config.plugins[0]), menuText.c_str());
+                        const UINT pluginIndex = static_cast<UINT>(&plugin - &g_config.plugins[0]);
+                        AppendMenuA(hPluginMenu, MF_STRING, ID_TRAY_PLUGIN_BASE + pluginIndex, menuText.c_str());
                     }
                 }
                 AppendMenuA(hMenu, MF_POPUP, (UINT_PTR)hPluginMenu, "Plugins");
@@ -234,30 +381,46 @@ void cleanupTrayIcon() {
 // 读取剪贴板内容
 std::string getClipboardText() {
     try {
-        if (!OpenClipboard(NULL)) {
+        ClipboardGuard clipboard(NULL);
+        if (!clipboard.isOpen()) {
             DWORD error = GetLastError();
             LOG_ERROR("Failed to open clipboard (Error: " + std::to_string(error) + ")");
             return "";
         }
-        
+
+        if (IsClipboardFormatAvailable(CF_UNICODETEXT)) {
+            HANDLE hData = GetClipboardData(CF_UNICODETEXT);
+            if (hData != NULL) {
+                wchar_t* wideText = static_cast<wchar_t*>(GlobalLock(hData));
+                if (wideText != NULL) {
+                    std::wstring wide(wideText);
+                    GlobalUnlock(hData);
+
+                    std::string utf8 = wideToUtf8(wide);
+                    LOG_DEBUG("Clipboard text length (Unicode): " + std::to_string(utf8.length()));
+                    return utf8;
+                }
+
+                LOG_ERROR("Failed to lock Unicode clipboard data");
+                return "";
+            }
+        }
+
         HANDLE hData = GetClipboardData(CF_TEXT);
         if (hData == NULL) {
-            CloseClipboard();
             LOG_DEBUG("No text data in clipboard");
             return "";
         }
-        
+
         char* pszText = static_cast<char*>(GlobalLock(hData));
         if (pszText == NULL) {
-            CloseClipboard();
             LOG_ERROR("Failed to lock clipboard data");
             return "";
         }
-        
-        std::string text(pszText);
+
+        std::string text = ansiToUtf8(pszText);
         GlobalUnlock(hData);
-        CloseClipboard();
-        
+
         LOG_DEBUG("Clipboard text length: " + std::to_string(text.length()));
         return text;
     } catch (const std::exception& e) {
@@ -269,39 +432,37 @@ std::string getClipboardText() {
 // 写入剪贴板
 bool writeToClipboard(const std::string& text) {
     try {
-        if (!OpenClipboard(NULL)) {
+        ClipboardGuard clipboard(NULL);
+        if (!clipboard.isOpen()) {
             LOG_ERROR("Cannot open clipboard for writing");
             return false;
         }
-        
-        EmptyClipboard();
-        
-        HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, text.length() + 1);
-        if (hMem == NULL) {
-            LOG_ERROR("Cannot allocate memory for clipboard");
-            CloseClipboard();
+
+        if (!EmptyClipboard()) {
+            LOG_ERROR("Cannot empty clipboard");
             return false;
         }
-        
-        char* pMem = static_cast<char*>(GlobalLock(hMem));
-        if (pMem == NULL) {
-            LOG_ERROR("Cannot lock memory for clipboard");
-            GlobalFree(hMem);
-            CloseClipboard();
+
+        std::wstring wideText = utf8ToWide(text);
+        if (wideText.empty() && !text.empty()) {
+            LOG_ERROR("Cannot convert UTF-8 text to UTF-16 for clipboard");
             return false;
         }
-        
-        strcpy_s(pMem, text.length() + 1, text.c_str());
-        GlobalUnlock(hMem);
-        
-        if (SetClipboardData(CF_TEXT, hMem) == NULL) {
-            LOG_ERROR("Cannot set clipboard data");
-            GlobalFree(hMem);
-            CloseClipboard();
+
+        std::wstring wideWithNull = wideText;
+        wideWithNull.push_back(L'\0');
+        if (!setClipboardTextData(CF_UNICODETEXT, wideWithNull.c_str(), wideWithNull.size() * sizeof(wchar_t))) {
+            LOG_ERROR("Cannot set Unicode clipboard data");
             return false;
         }
-        
-        CloseClipboard();
+
+        std::string ansiText = utf8ToAnsi(text);
+        std::string ansiWithNull = ansiText;
+        ansiWithNull.push_back('\0');
+        if (!setClipboardTextData(CF_TEXT, ansiWithNull.c_str(), ansiWithNull.size())) {
+            LOG_WARNING("Failed to set ANSI clipboard data fallback");
+        }
+
         return true;
     } catch (const std::exception& e) {
         LOG_ERROR("Exception writing to clipboard: " + std::string(e.what()));
@@ -335,7 +496,7 @@ std::string createTempFile(const std::string& content) {
 
         std::filesystem::path filepath = dir / filename.str();
         
-        std::ofstream file(filepath.string());
+        std::ofstream file(filepath.string(), std::ios::binary);
         if (!file.is_open()) {
             LOG_ERROR("Failed to create temp file: " + filepath.string());
             return "";
@@ -425,12 +586,9 @@ void processClipboardXYZToGView() {
         
         // 尝试解析格式
         std::vector<Frame> frames;
-        bool isChg = false;
-        
         // 如果启用了CHG格式支持，优先尝试CHG格式
         if (g_config.tryParseChgFormat && isChgFormat(content)) {
             LOG_INFO("Detected CHG format in clipboard.");
-            isChg = true;
             Frame frame = readChgFrame(content);
             if (!frame.atoms.empty()) {
                 frames.push_back(frame);
@@ -574,9 +732,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                         // 打开设置对话框并切换到About选项卡
                         ShowMenuWindow();
                         if (g_menuWindow) {
-                            // 切换到About选项卡（索引为1）
-                            TabCtrl_SetCurSel(g_menuWindow->GetTabControl(), 1);
-                            g_menuWindow->ShowTab(1);
+                            // 切换到About选项卡（索引为2）
+                            TabCtrl_SetCurSel(g_menuWindow->GetTabControl(), 2);
+                            g_menuWindow->ShowTab(2);
                         }
                         break;
                         
@@ -594,11 +752,14 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) 
                         break;
                         
                     default:
-                        // 处理插件菜单项 (ID从2000开始)
-                        if (wParam >= 2000) {
-                            const int pluginIndex = static_cast<int>(wParam) - 2000;
-                            if (pluginIndex >= 0 && static_cast<size_t>(pluginIndex) < g_config.plugins.size()) {
-                                executePlugin(g_config.plugins[static_cast<size_t>(pluginIndex)].name);
+                        // 处理插件菜单项
+                        {
+                            UINT commandId = LOWORD(wParam);
+                            if (commandId >= ID_TRAY_PLUGIN_BASE) {
+                                const int pluginIndex = static_cast<int>(commandId) - ID_TRAY_PLUGIN_BASE;
+                                if (pluginIndex >= 0 && static_cast<size_t>(pluginIndex) < g_config.plugins.size()) {
+                                    executePlugin(g_config.plugins[static_cast<size_t>(pluginIndex)].name);
+                                }
                             }
                         }
                         break;
@@ -684,12 +845,9 @@ bool processFileConversion(const std::string& filepath) {
         
         // 解析文件格式
         std::vector<Frame> frames;
-        bool isChg = false;
-        
         // 根据扩展名或内容检测格式
         if (ext == ".chg" || (g_config.tryParseChgFormat && isChgFormat(content))) {
             LOG_INFO("Processing CHG format file: " + filepath);
-            isChg = true;
             Frame frame = readChgFrame(content);
             if (!frame.atoms.empty()) {
                 frames.push_back(frame);

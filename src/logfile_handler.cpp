@@ -19,7 +19,7 @@ std::string LogFileHandler::readFirstLines(const std::string& filepath, int line
     }
     
     // 按行分割内容
-    std::vector<std::string> lines = split(fileContent.content, '\n');
+    std::vector<std::string> lines = splitLines(fileContent.content, true);
     
     std::ostringstream oss;
     int count = 0;
