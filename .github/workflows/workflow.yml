@@ -80,18 +80,23 @@ jobs:
         run: |
           Get-ChildItem -Recurse staging
 
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+
+          curl.exe -L -o innosetup.exe https://files.jrsoftware.org/is/6/innosetup-6.6.0.exe
+          .\innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
+          "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
       - name: Build installer
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
 
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) {
-            throw "ISCC.exe not found: $iscc"
-          }
-
-          & $iscc "staging\inno_setup\xyzclip.iss"
+          ISCC.exe staging\inno_setup\xyzclip.iss
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
