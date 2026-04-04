@@ -85,8 +85,14 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
-
-          curl.exe -L -o innosetup.exe https://files.jrsoftware.org/is/6/innosetup-6.6.0.exe
+      
+          $url = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe"
+          curl.exe -fL --retry 3 --retry-delay 2 -o innosetup.exe $url
+      
+          if ((Get-Item .\innosetup.exe).Length -lt 5MB) {
+            throw "Downloaded innosetup.exe is unexpectedly small."
+          }
+      
           .\innosetup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART
           "C:\Program Files (x86)\Inno Setup 6" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
